@@ -1,0 +1,6 @@
+{
+    "code_name": "semi_hyperbolic_floquet",
+    "code_params": "l=1_n=512_k=66_d=4_basis=Z",
+    "rounds": 7,
+    "memory_type": "Z"
+}

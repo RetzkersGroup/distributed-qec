@@ -1,0 +1,5 @@
+{
+  "code_name": "test_pairwise_xyz",
+  "description": "Tiny sanity-check circuit: prepare +1 eigenstates of XX, ZZ, YY on three pairs of qubits, then measure each twice via MPP. Each DETECTOR is the XOR of the two repeated measurements and should be deterministic.",
+  "rounds": 1
+}

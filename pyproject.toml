@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "distributed-ghz"
+version = "0.1.0"
+description = "Distributed quantum SE: Bell- and GHZ-based stabilizer measurements"
+requires-python = ">=3.10"
+authors = [{name = "Shoham Jacoby"}]
+keywords = ["quantum", "error-correction", "stim", "distributed"]
+
+dependencies = [
+    "numpy>=1.20.0",
+    "stim>=1.15.0",
+]
+
+[project.optional-dependencies]
+sampling = ["sinter>=1.14.0"]
+notebooks = ["jupyter", "ipython", "matplotlib", "pandas"]
+dev = ["pytest"]
+all = ["distributed-ghz[sampling,notebooks,dev]"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+
+[tool.setuptools.package-dir]
+"" = "src"

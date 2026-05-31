@@ -1,0 +1,30 @@
+# Tiny test circuit: each pair of data qubits is prepared in a +1
+# eigenstate of the corresponding 2-body Pauli (XX, ZZ, YY) using only
+# single-qubit ops, then that Pauli is measured twice via MPP. The two
+# measurements should agree, so each DETECTOR (rec[-1] XOR rec[-2]) is
+# deterministic. After Bell translation the DETECTOR refs are rewritten
+# to two pairs of ancilla recs, but the detector value is preserved.
+
+# XX block on qubits 0, 1: |++> is a +1 eigenstate of XX.
+RX 0 1
+MXX 0 1
+DETECTOR rec[-1]
+MPP X0*X1
+DETECTOR rec[-1] rec[-2]
+
+# ZZ block on qubits 2, 3: |00> is a +1 eigenstate of ZZ.
+R 2 3
+MZZ 2 3
+DETECTOR rec[-1]
+MPP Z2*Z3
+DETECTOR rec[-1] rec[-2]
+
+# YY block on qubits 4, 5: H S |0> = |+i> is a +1 eigenstate of Y, so
+# |+i, +i> is a +1 eigenstate of YY.
+R 4 5
+H 4 5
+S 4 5
+MPP Y4*Y5
+DETECTOR rec[-1]
+MPP Y4*Y5
+DETECTOR rec[-1] rec[-2]
