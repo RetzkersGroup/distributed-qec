@@ -21,3 +21,4 @@ out/
 
 # Pytest
 .pytest_cache/
+.claude/settings.local.json
