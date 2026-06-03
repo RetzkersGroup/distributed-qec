@@ -54,9 +54,9 @@ _PASS_THROUGH_NAMES = {
 
 @dataclass
 class NoiseParams:
-    p_init_x: float = 0.0
-    p_init_y: float = 0.0
-    p_init_z: float = 0.0
+    p_bell_x: float = 0.0
+    p_bell_y: float = 0.0
+    p_bell_z: float = 0.0
     p_internal: float = 0.0
     p_m: float = 0.0
     p_1: float = 0.0
@@ -71,9 +71,9 @@ class NoiseParams:
 
     def to_dict(self) -> dict:
         return {
-            "p_init_x": self.p_init_x,
-            "p_init_y": self.p_init_y,
-            "p_init_z": self.p_init_z,
+            "p_bell_x": self.p_bell_x,
+            "p_bell_y": self.p_bell_y,
+            "p_bell_z": self.p_bell_z,
             "p_internal": self.p_internal,
             "p_m": self.p_m,
             "p_1": self.p_1,
@@ -112,6 +112,9 @@ def _translate_flat(
     measurement_map: list[list[int]] = []
     new_meas_count = 0
 
+    # Accumulate all instructions as strings, parse once at the end.
+    buf: list[str] = []
+
     for op in circuit:
         name = op.name
         if name in PAIRWISE_MEASUREMENT_NAMES:
@@ -119,35 +122,37 @@ def _translate_flat(
             for basis, a, b in pairs:
                 anc1 = num_data + a
                 anc2 = num_data + b
-                _emit_bell_block(out, basis, a, b, anc1, anc2, noise)
+                _bell_block_to_buf(buf, basis, a, b, anc1, anc2, noise)
                 measurement_map.append([new_meas_count, new_meas_count + 1])
                 new_meas_count += 2
         elif name in _SINGLE_QUBIT_MEAS_NAMES:
             qubits = [t.qubit_value for t in op.targets_copy()]
             p_m = noise.p_m if noise is not None else 0.0
-            out.append(name, qubits, p_m)
+            q_str = " ".join(str(q) for q in qubits)
+            if p_m > 0:
+                buf.append(f"{name}({p_m}) {q_str}")
+            else:
+                buf.append(f"{name} {q_str}")
             for _ in qubits:
                 measurement_map.append([new_meas_count])
                 new_meas_count += 1
         elif name in _RESET_NAMES:
             qubits = [t.qubit_value for t in op.targets_copy()]
-            out.append(name, qubits)
-            _add_reset_noise(out, name, qubits, noise)
-        elif name == "DETECTOR":
-            new_targets = _rewrite_rec_targets(
-                op.targets_copy(), measurement_map, new_meas_count
+            q_str = " ".join(str(q) for q in qubits)
+            buf.append(f"{name} {q_str}")
+            _reset_noise_to_buf(buf, name, qubits, noise)
+        elif name == "DETECTOR" or name == "OBSERVABLE_INCLUDE":
+            _rewrite_annotation_to_buf(
+                buf, name, op, measurement_map, new_meas_count
             )
-            out.append("DETECTOR", new_targets, op.gate_args_copy())
-        elif name == "OBSERVABLE_INCLUDE":
-            new_targets = _rewrite_rec_targets(
-                op.targets_copy(), measurement_map, new_meas_count
-            )
-            out.append("OBSERVABLE_INCLUDE", new_targets, op.gate_args_copy())
         elif name in _SINGLE_QUBIT_GATE_NAMES:
-            out.append(op)
-            _add_1q_noise_after(out, op, noise)
+            qubits = [t.qubit_value for t in op.targets_copy()]
+            q_str = " ".join(str(q) for q in qubits)
+            buf.append(f"{name} {q_str}")
+            if noise is not None and noise.p_1 > 0 and qubits:
+                buf.append(f"DEPOLARIZE1({noise.p_1}) {q_str}")
         elif name in _PASS_THROUGH_NAMES:
-            out.append(op)
+            buf.append(str(op))
         else:
             raise ValueError(
                 f"Bell translation has no defined noise model for instruction "
@@ -157,7 +162,8 @@ def _translate_flat(
                 f"or pairwise measurements (MPP / MXX / MZZ / MYY). "
                 f"Two-qubit data-qubit gates (CX, CZ, etc.) are not allowed."
             )
-    return out
+
+    return stim.Circuit("\n".join(buf))
 
 
 def _extract_pairs(op: stim.CircuitInstruction) -> list[tuple[str, int, int]]:
@@ -217,145 +223,143 @@ def _pauli_of(t: stim.GateTarget) -> str:
     raise ValueError(f"Expected a Pauli target, got {t!r}")
 
 
-def _emit_bell_block(
-    out: stim.Circuit,
+def _bell_block_to_buf(
+    buf: list[str],
     basis: str, a: int, b: int, anc1: int, anc2: int,
     noise: NoiseParams | None,
 ) -> None:
     if basis == "X":
-        _emit_xx(out, a, b, anc1, anc2, noise)
+        _xx_to_buf(buf, a, b, anc1, anc2, noise)
     elif basis == "Z":
-        _emit_zz(out, a, b, anc1, anc2, noise)
+        _zz_to_buf(buf, a, b, anc1, anc2, noise)
     elif basis == "Y":
-        _emit_yy(out, a, b, anc1, anc2, noise)
+        _yy_to_buf(buf, a, b, anc1, anc2, noise)
     else:
         raise AssertionError(basis)
 
 
-def _emit_xx(
-    out: stim.Circuit, a: int, b: int, anc1: int, anc2: int,
+def _xx_to_buf(
+    buf: list[str], a: int, b: int, anc1: int, anc2: int,
     noise: NoiseParams | None,
 ) -> None:
-    # RX anc1; R anc2; CX anc1 anc2; CX anc1 a; CX anc2 b; MX anc1 anc2
-    out.append("RX", [anc1])
-    out.append("R", [anc2])
-    out.append("CX", [anc1, anc2])
+    buf.append(f"RX {anc1}")
+    buf.append(f"R {anc2}")
+    buf.append(f"CX {anc1} {anc2}")
     if noise is not None:
-        _add_init_noise(out, anc2, noise)
-    out.append("CX", [anc1, a])
+        _init_noise_to_buf(buf, anc2, noise)
+    buf.append(f"CX {anc1} {a}")
     if noise is not None and noise.p_internal > 0:
-        out.append("DEPOLARIZE2", [anc1, a], noise.p_internal)
-    out.append("CX", [anc2, b])
+        buf.append(f"DEPOLARIZE2({noise.p_internal}) {anc1} {a}")
+    buf.append(f"CX {anc2} {b}")
     if noise is not None and noise.p_internal > 0:
-        out.append("DEPOLARIZE2", [anc2, b], noise.p_internal)
+        buf.append(f"DEPOLARIZE2({noise.p_internal}) {anc2} {b}")
     p_m = noise.p_m if noise is not None else 0.0
-    out.append("MX", [anc1, anc2], p_m)
+    if p_m > 0:
+        buf.append(f"MX({p_m}) {anc1} {anc2}")
+    else:
+        buf.append(f"MX {anc1} {anc2}")
 
 
-def _emit_zz(
-    out: stim.Circuit, a: int, b: int, anc1: int, anc2: int,
+def _zz_to_buf(
+    buf: list[str], a: int, b: int, anc1: int, anc2: int,
     noise: NoiseParams | None,
 ) -> None:
-    # RX anc1; R anc2; CX anc1 anc2; CX a anc1; CX b anc2; M anc1 anc2
-    out.append("RX", [anc1])
-    out.append("R", [anc2])
-    out.append("CX", [anc1, anc2])
+    buf.append(f"RX {anc1}")
+    buf.append(f"R {anc2}")
+    buf.append(f"CX {anc1} {anc2}")
     if noise is not None:
-        _add_init_noise(out, anc2, noise)
-    out.append("CX", [a, anc1])
+        _init_noise_to_buf(buf, anc2, noise)
+    buf.append(f"CX {a} {anc1}")
     if noise is not None and noise.p_internal > 0:
-        out.append("DEPOLARIZE2", [a, anc1], noise.p_internal)
-    out.append("CX", [b, anc2])
+        buf.append(f"DEPOLARIZE2({noise.p_internal}) {a} {anc1}")
+    buf.append(f"CX {b} {anc2}")
     if noise is not None and noise.p_internal > 0:
-        out.append("DEPOLARIZE2", [b, anc2], noise.p_internal)
+        buf.append(f"DEPOLARIZE2({noise.p_internal}) {b} {anc2}")
     p_m = noise.p_m if noise is not None else 0.0
-    out.append("M", [anc1, anc2], p_m)
+    if p_m > 0:
+        buf.append(f"M({p_m}) {anc1} {anc2}")
+    else:
+        buf.append(f"M {anc1} {anc2}")
 
 
-def _emit_yy(
-    out: stim.Circuit, a: int, b: int, anc1: int, anc2: int,
+def _yy_to_buf(
+    buf: list[str], a: int, b: int, anc1: int, anc2: int,
     noise: NoiseParams | None,
 ) -> None:
-    # R anc2; RX anc1; CX anc1 anc2; S a b; CX anc2 b anc1 a; MX anc2 anc1; S_DAG a b
-    out.append("R", [anc2])
-    out.append("RX", [anc1])
-    out.append("CX", [anc1, anc2])
+    buf.append(f"R {anc2}")
+    buf.append(f"RX {anc1}")
+    buf.append(f"CX {anc1} {anc2}")
     if noise is not None:
-        _add_init_noise(out, anc2, noise)
-    out.append("S", [a, b])
+        _init_noise_to_buf(buf, anc2, noise)
+    buf.append(f"S {a} {b}")
     if noise is not None and noise.p_1 > 0:
-        out.append("DEPOLARIZE1", [a, b], noise.p_1)
-    out.append("CX", [anc2, b, anc1, a])
+        buf.append(f"DEPOLARIZE1({noise.p_1}) {a} {b}")
+    buf.append(f"CX {anc2} {b} {anc1} {a}")
     if noise is not None and noise.p_internal > 0:
-        out.append("DEPOLARIZE2", [anc2, b], noise.p_internal)
-        out.append("DEPOLARIZE2", [anc1, a], noise.p_internal)
+        buf.append(f"DEPOLARIZE2({noise.p_internal}) {anc2} {b}")
+        buf.append(f"DEPOLARIZE2({noise.p_internal}) {anc1} {a}")
     p_m = noise.p_m if noise is not None else 0.0
-    out.append("MX", [anc2, anc1], p_m)
-    out.append("S_DAG", [a, b])
+    if p_m > 0:
+        buf.append(f"MX({p_m}) {anc2} {anc1}")
+    else:
+        buf.append(f"MX {anc2} {anc1}")
+    buf.append(f"S_DAG {a} {b}")
     if noise is not None and noise.p_1 > 0:
-        out.append("DEPOLARIZE1", [a, b], noise.p_1)
+        buf.append(f"DEPOLARIZE1({noise.p_1}) {a} {b}")
 
 
-def _add_init_noise(out: stim.Circuit, qubit: int, noise: NoiseParams) -> None:
-    if noise.p_init_x == 0 and noise.p_init_y == 0 and noise.p_init_z == 0:
+def _init_noise_to_buf(buf: list[str], qubit: int, noise: NoiseParams) -> None:
+    if noise.p_bell_x == 0 and noise.p_bell_y == 0 and noise.p_bell_z == 0:
         return
-    out.append(
-        "PAULI_CHANNEL_1",
-        [qubit],
-        (noise.p_init_x, noise.p_init_y, noise.p_init_z),
+    buf.append(
+        f"PAULI_CHANNEL_1({noise.p_bell_x}, {noise.p_bell_y}, {noise.p_bell_z}) {qubit}"
     )
 
 
-def _add_1q_noise_after(
-    out: stim.Circuit, op: stim.CircuitInstruction, noise: NoiseParams | None
-) -> None:
-    if noise is None or noise.p_1 == 0:
-        return
-    qubits = [t.qubit_value for t in op.targets_copy() if t.qubit_value is not None]
-    if qubits:
-        out.append("DEPOLARIZE1", qubits, noise.p_1)
-
-
-def _add_reset_noise(
-    out: stim.Circuit, reset_name: str, qubits: list[int],
+def _reset_noise_to_buf(
+    buf: list[str], reset_name: str, qubits: list[int],
     noise: NoiseParams | None,
 ) -> None:
-    """Add state-prep noise after a reset.
-
-    R prepares |0>, an eigenstate of Z, so the dominant noise is a Pauli that
-    anticommutes with Z — i.e. X_ERROR. Symmetrically, RX prepares |+> and
-    gets Z_ERROR.
-    """
     if noise is None or noise.p_init == 0 or not qubits:
         return
+    q_str = " ".join(str(q) for q in qubits)
     if reset_name in _Z_BASIS_RESET:
-        out.append("X_ERROR", qubits, noise.p_init)
+        buf.append(f"X_ERROR({noise.p_init}) {q_str}")
     elif reset_name in _X_BASIS_RESET:
-        out.append("Z_ERROR", qubits, noise.p_init)
+        buf.append(f"Z_ERROR({noise.p_init}) {q_str}")
 
 
-def _rewrite_rec_targets(
-    targets: Iterable[stim.GateTarget],
+def _rewrite_annotation_to_buf(
+    buf: list[str],
+    name: str,
+    op: stim.CircuitInstruction,
     measurement_map: list[list[int]],
     new_meas_count: int,
-) -> list[stim.GateTarget]:
-    """Map every rec[-k] target to the corresponding new rec targets.
-
-    For a pairwise measurement that became two ancilla measurements, the
-    XOR of those two ancilla outcomes equals the original outcome, so a
-    single rec target becomes two rec targets.
-    """
+) -> None:
+    """Rewrite DETECTOR/OBSERVABLE_INCLUDE rec targets and append as string."""
+    targets = op.targets_copy()
+    args = op.gate_args_copy()
     n_old = len(measurement_map)
-    out: list[stim.GateTarget] = []
+
+    rec_parts: list[str] = []
     for t in targets:
         if t.is_measurement_record_target:
-            k = -t.value  # k > 0
+            k = -t.value
             old_idx = n_old - k
             if old_idx < 0:
                 raise ValueError(f"rec[-{k}] precedes any measurement.")
             for new_idx in measurement_map[old_idx]:
-                offset = new_idx - new_meas_count  # negative
-                out.append(stim.target_rec(offset))
+                offset = new_idx - new_meas_count
+                rec_parts.append(f"rec[{offset}]")
         else:
-            out.append(t)
-    return out
+            rec_parts.append(str(t))
+
+    if name == "DETECTOR":
+        if args:
+            coords = ", ".join(str(a) for a in args)
+            buf.append(f"DETECTOR({coords}) {' '.join(rec_parts)}")
+        else:
+            buf.append(f"DETECTOR {' '.join(rec_parts)}")
+    else:
+        idx = int(args[0]) if args else 0
+        buf.append(f"OBSERVABLE_INCLUDE({idx}) {' '.join(rec_parts)}")

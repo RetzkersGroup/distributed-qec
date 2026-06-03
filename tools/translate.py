@@ -16,7 +16,7 @@ Examples:
     python tools/translate.py \
         --input "in/circuits/hyperbolic_floquet/circuit.stim" \
         --output-dir out/ \
-        --p-init-x 0.01 --p-init-y 0.01 --p-init-z 0.01 \
+        --p-bell-x 0.01 --p-bell-y 0.01 --p-bell-z 0.01 \
         --p-internal 0.001 --p-m 0.01 --p-1 0.001
 
     python tools/translate.py \
@@ -134,11 +134,11 @@ def main() -> None:
     parser.add_argument("--noise-model", default="biased_bell",
                         choices=["biased_bell"],
                         help="Noise model name (only biased_bell currently).")
-    parser.add_argument("--p-init-x", type=float, default=0.0,
+    parser.add_argument("--p-bell-x", type=float, default=0.0,
                         help="X component of Bell-pair prep noise.")
-    parser.add_argument("--p-init-y", type=float, default=0.0,
+    parser.add_argument("--p-bell-y", type=float, default=0.0,
                         help="Y component of Bell-pair prep noise.")
-    parser.add_argument("--p-init-z", type=float, default=0.0,
+    parser.add_argument("--p-bell-z", type=float, default=0.0,
                         help="Z component of Bell-pair prep noise.")
     parser.add_argument("--p-internal", type=float, default=0.0,
                         help="DEPOLARIZE2 after each ancilla<->data CX.")
@@ -170,9 +170,9 @@ def main() -> None:
     noise = None
     if not args.noiseless:
         noise = NoiseParams(
-            p_init_x=args.p_init_x,
-            p_init_y=args.p_init_y,
-            p_init_z=args.p_init_z,
+            p_bell_x=args.p_bell_x,
+            p_bell_y=args.p_bell_y,
+            p_bell_z=args.p_bell_z,
             p_internal=args.p_internal,
             p_m=args.p_m,
             p_1=args.p_1,

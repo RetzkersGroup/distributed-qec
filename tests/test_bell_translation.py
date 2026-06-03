@@ -213,9 +213,9 @@ class TestRecRefRewriting:
 # ---------------------------------------------------------------------------
 
 class TestNoiseInjection:
-    def test_p_init_xyz(self):
+    def test_p_bell_xyz(self):
         src = stim.Circuit("R 0 1\nMPP Z0*Z1\nDETECTOR rec[-1]")
-        noise = NoiseParams(p_init_x=0.01, p_init_y=0.02, p_init_z=0.03)
+        noise = NoiseParams(p_bell_x=0.01, p_bell_y=0.02, p_bell_z=0.03)
         tr = translate_circuit(src, noise)
         assert _has_instruction(tr, "PAULI_CHANNEL_1")
 

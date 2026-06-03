@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-sampling = ["sinter>=1.14.0"]
+sampling = ["sinter>=1.14.0", "pymatching>=2.0.0", "pandas"]
 notebooks = ["jupyter", "ipython", "matplotlib", "pandas"]
 dev = ["pytest"]
 all = ["distributed-ghz[sampling,notebooks,dev]"]

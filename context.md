@@ -94,17 +94,23 @@ Look [here](https://github.com/shohamjac/stairway-codes/tree/main) for example i
 
 The noise model is called `biased_bell`.
 
-The general approach is that each data qubit `q` sits on a "site" which holds exactly one dedicated ancilla at qubit index `num_data + q`. A pairwise measurement on data qubits `(q1, q2)` always uses ancillas `(num_data + q1, num_data + q2)`. The same ancilla is reused across all measurement rounds (reset at the start of each Bell block). The Bell state is generated between the two ancilla sites and used to jointly-measure the data qubits. Noise parameters:
+The general approach is that each data qubit `q` sits on a "site" which holds exactly one dedicated ancilla at qubit index `num_data + q`. A pairwise measurement on data qubits `(q1, q2)` always uses ancillas `(num_data + q1, num_data + q2)`. The same ancilla is reused across all measurement rounds (reset at the start of each Bell block). The Bell state is generated between the two ancilla sites and used to jointly-measure the data qubits.
 
-1. `p_init_{x,y,z}` - Initial Bell state noise: applied as `PAULI_CHANNEL_1(p_init_x, p_init_y, p_init_z)` on one ancilla qubit after Bell pair creation. (Exact placement TBD — needs thought before implementation.)
+### Noise parameterization
 
-2. `p_internal` - CX noise inside the chip: 2-qubit depolarizing noise after the internal CNOT between the ancilla and data qubits.
+The model is controlled by two parameters: **`p`** (physical error rate) and **`bell_bias`** (multiplicative factor for the Z-component of Bell-pair noise). The individual noise channels are derived as:
 
-3. `p_m` - Measurement error: applied to all measurements (ancilla and data-qubit single-qubit measurements alike), via the probability argument of `M(p)` / `MX(p)` / `MR(p)` / `MRX(p)`.
+| Channel | Value | Description |
+|---------|-------|-------------|
+| `p_bell_x` | `p` | X-component of Bell-pair prep noise |
+| `p_bell_y` | `p` | Y-component of Bell-pair prep noise |
+| `p_bell_z` | `bell_bias * p` | Z-component of Bell-pair prep noise (biased) |
+| `p_internal` | `p` | 2-qubit depolarizing after ancilla↔data CX |
+| `p_m` | `p` | Measurement flip probability |
+| `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates |
+| `p_init` | `p` | Data-qubit state-prep noise (X_ERROR after R, Z_ERROR after RX) |
 
-4. `p_1` - Single-qubit gate noise: 1-qubit depolarizing noise after any single-qubit gate (S, S_DAG, H, etc.).
-
-5. `p_init` - Data-qubit state-preparation noise: `X_ERROR(p_init)` after every `R` (preparing |0⟩) and `Z_ERROR(p_init)` after every `RX` (preparing |+⟩) on data qubits. The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_init_{x,y,z}`.
+Applied as `PAULI_CHANNEL_1(p_bell_x, p_bell_y, p_bell_z)` on one ancilla qubit after Bell pair creation. The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`.
 
 ## Allowed input operations
 
@@ -126,13 +132,14 @@ input circuit + metadata → translate method (adds noise, updates metadata) →
 
 ### Milestones
 
-**Milestone 1:** Bell translation with `biased_bell` noise (no sampling yet).
+**Milestone 1:** Bell translation with `biased_bell` noise (no sampling yet). ✓
 - Translate MXX/MZZ/MPP(2-body) → Bell measurement circuits
 - Apply `biased_bell` noise model
 - Output translated circuit + metadata
 
-**Milestone 2:** Sampling with sinter.
-- TODO: Pull `decode.py` from `long-range-parity` project (has dependencies to resolve).
-- End-to-end: translated circuit → sinter → CSV with metadata.
+**Milestone 2:** Sampling with sinter. ✓
+- `tools/make_circuits.py` — generates translated circuits for a sweep of `p` values (with configurable `bell_bias`)
+- `tools/decode.py` — runs sinter.collect() with pymatching, outputs CSV with metadata
+- End-to-end: input circuit → make_circuits (translate + noise) → decode (sinter) → CSV
 
 **Milestone 3:** GHZ-based measurements (TBD).
