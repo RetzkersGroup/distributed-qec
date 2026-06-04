@@ -22,3 +22,5 @@ out/
 # Pytest
 .pytest_cache/
 .claude/settings.local.json
+in/circuits/hyperbolic_floquet/8.8.8/k=6_0e885f39/*
+temp/*
