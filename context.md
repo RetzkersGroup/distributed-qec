@@ -120,7 +120,7 @@ For the GHZ-based (Shor-style) measurement approach, the noise model is called `
 |---------|-------|-------------|
 | `p_ghz_x` | `p / 2` | X error on each qubit of the GHZ |
 | `p_ghz_y` | `p / 2` | Y error on each qubit of the GHZ |
-| `p_ghz_z` | `p_ghz_z` | Z error on each qubit of the GHZ (set independently) |
+| `p_ghz_z` | `p_bell_z` | Z error on each qubit of the GHZ (set independently), almost equivalent to `number_of_qubits*p_bell_z` on one |
 | `p_internal` | `p` | 2-qubit depolarizing after ancilla↔data CX |
 | `p_m` | `p` | Measurement flip probability |
 | `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates |
