@@ -9,10 +9,10 @@
   "rounds": 16,
   "observable": "H",
   "sheared": false,
-  "expected_distance": 10,
-  "k": 2,
+  "expected_distance": 5,
+  "k": 1,
   "num_qubits": 150,
   "num_measurements": 4070,
   "num_detectors": 1245,
-  "num_observables": 2
+  "num_observables": 1
 }

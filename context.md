@@ -98,19 +98,35 @@ The general approach is that each data qubit `q` sits on a "site" which holds ex
 
 ### Noise parameterization
 
-The model is controlled by two parameters: **`p`** (physical error rate) and **`bell_bias`** (multiplicative factor for the Z-component of Bell-pair noise). The individual noise channels are derived as:
+The model is controlled by two parameters: **`p`** (physical error rate) and **`p_bell_z`** (Z-component of Bell-pair prep noise, set independently). The individual noise channels are derived as:
 
 | Channel | Value | Description |
 |---------|-------|-------------|
-| `p_bell_x` | `p` | X-component of Bell-pair prep noise |
-| `p_bell_y` | `p` | Y-component of Bell-pair prep noise |
-| `p_bell_z` | `bell_bias * p` | Z-component of Bell-pair prep noise (biased) |
+| `p_bell_x` | `p / 2` | X-component of Bell-pair prep noise |
+| `p_bell_y` | `p / 2` | Y-component of Bell-pair prep noise |
+| `p_bell_z` | `p_bell_z` | Z-component of Bell-pair prep noise (set independently) |
 | `p_internal` | `p` | 2-qubit depolarizing after ancilla↔data CX |
 | `p_m` | `p` | Measurement flip probability |
 | `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates |
 | `p_init` | `p` | Data-qubit state-prep noise (X_ERROR after R, Z_ERROR after RX) |
 
 Applied as `PAULI_CHANNEL_1(p_bell_x, p_bell_y, p_bell_z)` on one ancilla qubit after Bell pair creation. The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`.
+
+### GHZ noise model
+
+For the GHZ-based (Shor-style) measurement approach, the noise model is called `biased_ghz`. After the GHZ state on the `k` ancilla sites is prepared (one ancilla per data qubit participating in the stabilizer), a per-qubit Pauli channel is applied to each ancilla in the GHZ. The other channels match the Bell model.
+
+| Channel | Value | Description |
+|---------|-------|-------------|
+| `p_ghz_x` | `p_ghz_x` | X error on each qubit of the GHZ |
+| `p_ghz_y` | `p_ghz_y` | Y error on each qubit of the GHZ |
+| `p_ghz_z` | `p_ghz_z` | Z error on each qubit of the GHZ |
+| `p_internal` | `p` | 2-qubit depolarizing after ancilla↔data CX |
+| `p_m` | `p` | Measurement flip probability |
+| `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates |
+| `p_init` | `p` | Data-qubit state-prep noise (X_ERROR after R, Z_ERROR after RX) |
+
+Applied as `PAULI_CHANNEL_1(p_ghz_x, p_ghz_y, p_ghz_z)` on every ancilla qubit of the GHZ after preparation. As with the Bell model, ancilla resets inside the GHZ preparation are *not* affected by `p_init` — their noise is captured by `p_ghz_{x,y,z}`.
 
 ## Allowed input operations
 
@@ -138,7 +154,7 @@ input circuit + metadata → translate method (adds noise, updates metadata) →
 - Output translated circuit + metadata
 
 **Milestone 2:** Sampling with sinter. ✓
-- `tools/make_circuits.py` — generates translated circuits for a sweep of `p` values (with configurable `bell_bias`)
+- `tools/make_circuits.py` — generates translated circuits for a sweep of `p` values (with configurable `p_bell_z`)
 - `tools/decode.py` — runs sinter.collect() with pymatching, outputs CSV with metadata
 - End-to-end: input circuit → make_circuits (translate + noise) → decode (sinter) → CSV
 

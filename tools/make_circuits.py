@@ -5,8 +5,10 @@ Takes noiseless input circuits, translates each through the Bell
 measurement scheme at multiple physical error rates, and writes the
 output circuits + metadata JSONs.
 
-The noise parameters are derived from a single physical error rate `p`:
-  - p_bell_x = p_bell_y = p_bell_z = p  (Bell-pair prep noise)
+The noise parameters are derived from a physical error rate `p` and an
+independent Z-bias `p_bell_z`:
+  - p_bell_x = p_bell_y = p / 2         (Bell-pair prep noise, X/Y)
+  - p_bell_z = p_bell_z                 (Bell-pair prep noise, Z; set independently)
   - p_internal = p                       (CX depolarizing)
   - p_m = p                              (measurement flip)
   - p_1 = p / 10                         (single-qubit gate depol)
@@ -39,8 +41,6 @@ import re
 import sys
 
 import stim
-
-BELL_BIAS = 1
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _SRC = _ROOT / "src"
@@ -86,12 +86,12 @@ def _parse_filename(filename: str) -> dict:
     return params
 
 
-def _noise_from_p(p: float, bell_bias: float) -> NoiseParams:
-    """All channels = p except p_bell_z = bell_bias * p and p_1 = p/10."""
+def _noise_from_p(p: float, p_bell_z: float) -> NoiseParams:
+    """X/Y Bell channels = p/2; p_bell_z is set independently; p_1 = p/10."""
     return NoiseParams(
-        p_bell_x=p,
-        p_bell_y=p,
-        p_bell_z=bell_bias * p,
+        p_bell_x=p / 2,
+        p_bell_y=p / 2,
+        p_bell_z=p_bell_z,
         p_internal=p,
         p_m=p,
         p_1=p / 10,
@@ -102,14 +102,14 @@ def _noise_from_p(p: float, bell_bias: float) -> NoiseParams:
 def _process(
     in_path: pathlib.Path,
     p: float,
-    bell_bias: float,
+    p_bell_z: float,
     out_dir: pathlib.Path,
 ) -> None:
-    noise = _noise_from_p(p, bell_bias)
+    noise = _noise_from_p(p, p_bell_z)
     circuit = stim.Circuit.from_file(str(in_path))
     translated = translate_circuit(circuit, noise)
 
-    out_stem = f"{in_path.stem}_biased_bell_p={p}_bias={bell_bias}"
+    out_stem = f"{in_path.stem}_biased_bell_p={p}_pbz={p_bell_z}"
     out_circuit_path = out_dir / f"{out_stem}.stim"
     out_meta_path = out_dir / f"{out_stem}.json"
 
@@ -118,7 +118,7 @@ def _process(
     parsed = _parse_filename(in_path.name)
     metadata = {
         "p": p,
-        "bell_bias": bell_bias,
+        "p_bell_z": p_bell_z,
         "noise_model": "biased_bell",
         "noise_params": noise.to_dict(),
         "translation": "bell",
@@ -158,8 +158,8 @@ def main() -> None:
         help="Physical error rates to sweep.",
     )
     parser.add_argument(
-        "--bell-bias", type=float, default=BELL_BIAS,
-        help=f"Multiplicative factor for p_bell_z (default: {BELL_BIAS}).",
+        "--p-bell-z", type=float, required=True, dest="p_bell_z",
+        help="Z-component of Bell-pair prep noise (set independently of p).",
     )
     parser.add_argument(
         "--output-dir", default="out/circuits/hyperbolic_floquet",
@@ -177,7 +177,7 @@ def main() -> None:
     for in_path in inputs:
         print(f"{in_path.name}:")
         for p in args.p_values:
-            _process(in_path, p, args.bell_bias, out_dir)
+            _process(in_path, p, args.p_bell_z, out_dir)
 
 
 if __name__ == "__main__":
