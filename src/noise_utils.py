@@ -3,10 +3,10 @@ import _honey_comb_noise as hc_noise
 
 
 FLEXIBLE_PAIRWISE_PROFILES = {
-    "measurement-limited": {"p_m_bulk": 1.0, "p_spam": 0.000001, "p_depolarizing": 0.000001},
-    "depolarizing-limited": {"p_m_bulk": 0.000001, "p_spam": 0.000001, "p_depolarizing": 1.0},
-    "spam-limited": {"p_m_bulk": 0.000001, "p_spam": 1.0, "p_depolarizing": 0.000001},
-    "balanced": {"p_m_bulk": 1.0, "p_spam": 1.0, "p_depolarizing": 1.0},
+    "measurement-limited": {"p_m_bulk": 1.0, "p_spam": 0.000001, "p_res": 0.000001},
+    "res-limited": {"p_m_bulk": 0.000001, "p_spam": 0.000001, "p_res": 1.0},
+    "spam-limited": {"p_m_bulk": 0.000001, "p_spam": 1.0, "p_res": 0.000001},
+    "balanced": {"p_m_bulk": 1.0, "p_spam": 1.0, "p_res": 1.0},
 }
 
 
@@ -35,7 +35,7 @@ def get_noise_model(name: str, p: float, *, profile: str | None = None):
             return cultiv_noise.NoiseModel.flexible_pairwise(
                 p_m_bulk=p * ratios["p_m_bulk"],
                 p_spam=p * ratios["p_spam"],
-                p_depolarizing=p * ratios["p_depolarizing"],
+                p_res=p * ratios["p_res"],
             )
         case _:
             raise ValueError(f"Unknown noise model name: {name}")

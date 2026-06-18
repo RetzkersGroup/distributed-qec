@@ -1,0 +1,15 @@
+a W D1
+b W D2
+c W |0\rangle |0\rangle
+a b G \rotatebox{90}{$ZZ^{\frac{1}{4}}$}
+
+a b END
+=
+a b c START
+
+a +c
+b +c
+c G $e^{i \theta Z}$
+
+b +c
+a +c

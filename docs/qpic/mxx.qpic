@@ -1,0 +1,60 @@
+# Expansion of `MXX 0 1` via two ancilla qubits.
+#
+# Implements the joint XX measurement as:
+#     RX 2
+#     R  3
+#     CX 2 3
+#     CX 2 0
+#     CX 3 1
+#     MX 2
+#     MX 3
+#
+# Wires are drawn in the order q_0, q_2, q_3, q_1 so the data-ancilla
+# CXs (CX 2 0 and CX 3 1) are short, non-crossing vertical lines.
+#
+# Compile to SVG with:
+#     qpic -f svg mxx.qpic       # writes mxx.svg
+# or to TikZ for inclusion in LaTeX:
+#     qpic -f tikz mxx.qpic > mxx.tex
+
+# a W D1
+# b W D2
+# a b \rotatebox{90}{$M_{ZZ}$}
+
+# a b END
+=
+a b START
+
+
+a W a
+b W b
+c W \ket{0}
+d W \ket{+}
+
+# Bell pair on the ancillas.
+c +d
+
+# Stitch each ancilla to its data partner.
+q2 +q0
+q3 +q1
+
+# Measure both ancillas in the X basis.
+q2 M $X$
+q3 M $X$
+
+
+a W D1
+b W D2
+c W |0\rangle |0\rangle
+a b G \rotatebox{90}{$ZZ^{\frac{1}{4}}$}
+
+a b END
+=
+a b c START
+
+a +c
+b +c
+c G $e^{i \theta Z}$
+
+b +c
+a +c

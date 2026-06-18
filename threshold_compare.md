@@ -14,9 +14,11 @@ Applied directly to circuits containing `MPP` (2-body), `R`/`RX`, and `M`/`MX` i
 |-----------|---------|-----------|
 | `p_m_bulk` | Measurement flip (`flip_result`) | 2-body pairwise measurements (XX, YY, ZZ) |
 | `p_spam` | Reset error + single-qubit measurement flip | `X_ERROR` after R, `Z_ERROR` after RX, `flip_result` on M/MX |
-| `p_depolarizing` | `DEPOLARIZE2` after measurement | 2-body pairwise measurements (XX, YY, ZZ) |
+| `p_depolarizing` | `DEPOLARIZE1` after measurement | 2-body pairwise measurements (XX, YY, ZZ) |
 
 No idle noise, no single-qubit gate noise (H/S are treated as noiseless logical basis changes).
+
+We use `DEPOLARIZE1` because we assume the underlying implementation is Bell-measurement which do not introduce correlated errors.
 
 ### Usage
 

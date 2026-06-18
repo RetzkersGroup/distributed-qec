@@ -92,7 +92,7 @@ Look [here](https://github.com/shohamjac/stairway-codes/tree/main) for example i
 
 ## Noise
 
-The noise model is called `biased_bell`.
+The noise model is called `biased_bell_v2`.
 
 The general approach is that each data qubit `q` sits on a "site" which holds exactly one dedicated ancilla at qubit index `num_data + q`. A pairwise measurement on data qubits `(q1, q2)` always uses ancillas `(num_data + q1, num_data + q2)`. The same ancilla is reused across all measurement rounds (reset at the start of each Bell block). The Bell state is generated between the two ancilla sites and used to jointly-measure the data qubits.
 
@@ -105,12 +105,18 @@ The model is controlled by two parameters: **`p`** (physical error rate) and **`
 | `p_bell_x` | `p / 2` | X-component of Bell-pair prep noise |
 | `p_bell_y` | `p / 2` | Y-component of Bell-pair prep noise |
 | `p_bell_z` | `p_bell_z` | Z-component of Bell-pair prep noise (set independently) |
-| `p_internal` | `p` | 2-qubit depolarizing after ancilla↔data CX |
+| `p_data_z` | `p` | Z_ERROR on the two participating data qubits during Bell-pair prep |
+| `p_internal` | `0` | 2-qubit depolarizing after ancilla↔data CX (specified parameter, default 0) |
 | `p_m` | `p` | Measurement flip probability |
 | `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates |
 | `p_init` | `p` | Data-qubit state-prep noise (X_ERROR after R, Z_ERROR after RX) |
 
-Applied as `PAULI_CHANNEL_1(p_bell_x, p_bell_y, p_bell_z)` on one ancilla qubit after Bell pair creation. The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`.
+After Bell-pair creation (and before the ancilla↔data CX gates), apply:
+
+- `PAULI_CHANNEL_1(p_bell_x, p_bell_y, p_bell_z)` on one ancilla qubit, and
+- `Z_ERROR(p)` on the two data qubits participating in the measurement.
+
+The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`. `p_internal` is retained as a specified parameter (defaulting to `0` in v2) so the v1 channel can still be turned on if desired.
 
 ### GHZ noise model
 
@@ -159,3 +165,27 @@ input circuit + metadata → translate method (adds noise, updates metadata) →
 - End-to-end: input circuit → make_circuits (translate + noise) → decode (sinter) → CSV
 
 **Milestone 3:** GHZ-based measurements (TBD).
+
+# Appendix
+
+## Appendix A: `biased_bell` (v1) noise model
+
+The original Bell-mediated noise model, superseded by `biased_bell_v2` above. Kept here for reference and reproducibility of earlier results.
+
+The general approach is that each data qubit `q` sits on a "site" which holds exactly one dedicated ancilla at qubit index `num_data + q`. A pairwise measurement on data qubits `(q1, q2)` always uses ancillas `(num_data + q1, num_data + q2)`. The same ancilla is reused across all measurement rounds (reset at the start of each Bell block). The Bell state is generated between the two ancilla sites and used to jointly-measure the data qubits.
+
+### Noise parameterization
+
+The model is controlled by two parameters: **`p`** (physical error rate) and **`p_bell_z`** (Z-component of Bell-pair prep noise, set independently). The individual noise channels are derived as:
+
+| Channel | Value | Description |
+|---------|-------|-------------|
+| `p_bell_x` | `p / 2` | X-component of Bell-pair prep noise |
+| `p_bell_y` | `p / 2` | Y-component of Bell-pair prep noise |
+| `p_bell_z` | `p_bell_z` | Z-component of Bell-pair prep noise (set independently) |
+| `p_internal` | `p` | 2-qubit depolarizing after ancilla↔data CX |
+| `p_m` | `p` | Measurement flip probability |
+| `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates |
+| `p_init` | `p` | Data-qubit state-prep noise (X_ERROR after R, Z_ERROR after RX) |
+
+Applied as `PAULI_CHANNEL_1(p_bell_x, p_bell_y, p_bell_z)` on one ancilla qubit after Bell pair creation. The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`.

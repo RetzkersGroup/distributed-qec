@@ -5,19 +5,19 @@ INPUT="in/circuits/hyperbolic_floquet/8.8.8/k=10_d3a22e5e/semi_hyperbolic_floque
 P_VALUES="0.0005 0.001 0.002 0.005 0.01"
 OUT_DIR="out/circuits/bias_comparison"
 
-echo "=== Generating circuits with bell_bias=1 ==="
+echo "=== Generating circuits with p_bell_z=0.001 ==="
 python tools/make_circuits.py \
   --input "$INPUT" \
   --p-values $P_VALUES \
-  --bell-bias 1 \
+  --p-bell-z 0.001 \
   --output-dir $OUT_DIR
 
 echo ""
-echo "=== Generating circuits with bell_bias=10 ==="
+echo "=== Generating circuits with p_bell_z=0.01 ==="
 python tools/make_circuits.py \
   --input "$INPUT" \
   --p-values $P_VALUES \
-  --bell-bias 10 \
+  --p-bell-z 0.01 \
   --output-dir $OUT_DIR
 
 echo ""

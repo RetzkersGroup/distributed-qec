@@ -220,12 +220,12 @@ class NoiseModel:
         return cls.biased_noise(p=p, p_d=p_d, p_m=p_m)
 
     @classmethod
-    def flexible_pairwise(cls, p_m_bulk: float, p_spam: float, p_depolarizing: float) -> 'NoiseModel':
-        """Pairwise-measurement noise with independent measurement, SPAM, and depolarizing rates.
+    def flexible_pairwise(cls, p_m_bulk: float, p_spam: float, p_res: float) -> 'NoiseModel':
+        """Pairwise-measurement noise with independent measurement, SPAM, and residual depolarizing rates.
 
         No idle noise, no single-qubit gate noise.
         """
-        pairwise_after = {'DEPOLARIZE2': p_depolarizing} if p_depolarizing > 0 else {}
+        pairwise_after = {'DEPOLARIZE1': p_res} if p_res > 0 else {}
         spam_after_r = {'X_ERROR': p_spam} if p_spam > 0 else {}
         spam_after_rx = {'Z_ERROR': p_spam} if p_spam > 0 else {}
         return cls(
