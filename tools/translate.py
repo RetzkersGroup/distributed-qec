@@ -3,7 +3,7 @@
 
 Reads one or more stim circuits (with optional sidecar .json metadata),
 strips noise, replaces every 2-body MPP / MXX / MZZ / MYY with a
-Bell-mediated equivalent, and applies the `biased_bell` noise model.
+Bell-mediated equivalent, and applies the `biased_bell_v2` noise model.
 Writes each translated circuit plus a merged metadata json.
 
 `--input` accepts:
@@ -127,21 +127,25 @@ def main() -> None:
         help="Directory to write translated circuits and metadata into.",
     )
     parser.add_argument(
-        "--output-suffix", default="biased_bell",
-        help="Suffix appended to each output filename (default: biased_bell).",
+        "--output-suffix", default="biased_bell_v2",
+        help="Suffix appended to each output filename (default: biased_bell_v2).",
     )
 
-    parser.add_argument("--noise-model", default="biased_bell",
-                        choices=["biased_bell"],
-                        help="Noise model name (only biased_bell currently).")
+    parser.add_argument("--noise-model", default="biased_bell_v2",
+                        choices=["biased_bell_v2"],
+                        help="Noise model name (only biased_bell_v2 currently).")
     parser.add_argument("--p-bell-x", type=float, default=0.0,
                         help="X component of Bell-pair prep noise.")
     parser.add_argument("--p-bell-y", type=float, default=0.0,
                         help="Y component of Bell-pair prep noise.")
     parser.add_argument("--p-bell-z", type=float, default=0.0,
                         help="Z component of Bell-pair prep noise.")
+    parser.add_argument("--p-data-z", type=float, default=0.0, dest="p_data_z",
+                        help="Z_ERROR on the two participating data qubits "
+                             "during Bell-pair prep.")
     parser.add_argument("--p-internal", type=float, default=0.0,
-                        help="DEPOLARIZE2 after each ancilla<->data CX.")
+                        help="DEPOLARIZE2 after each ancilla<->data CX "
+                             "(default 0 in v2).")
     parser.add_argument("--p-m", type=float, default=0.0,
                         help="Measurement-flip probability (M(p), MX(p), ...).")
     parser.add_argument("--p-1", type=float, default=0.0, dest="p_1",
@@ -173,6 +177,7 @@ def main() -> None:
             p_bell_x=args.p_bell_x,
             p_bell_y=args.p_bell_y,
             p_bell_z=args.p_bell_z,
+            p_data_z=args.p_data_z,
             p_internal=args.p_internal,
             p_m=args.p_m,
             p_1=args.p_1,

@@ -6,10 +6,11 @@ measurement scheme at multiple physical error rates, and writes the
 output circuits + metadata JSONs.
 
 The noise parameters are derived from a physical error rate `p` and an
-independent Z-bias `p_bell_z`:
+independent Z-bias `p_bell_z` (biased_bell_v2):
   - p_bell_x = p_bell_y = p / 2         (Bell-pair prep noise, X/Y)
   - p_bell_z = p_bell_z                 (Bell-pair prep noise, Z; set independently)
-  - p_internal = p                       (CX depolarizing)
+  - p_data_z = p                         (Z_ERROR on the two data qubits during Bell prep)
+  - p_internal = 0                       (CX depolarizing; off in v2 by default)
   - p_m = p                              (measurement flip)
   - p_1 = p / 10                         (single-qubit gate depol)
   - p_init = p                           (data-qubit reset noise)
@@ -87,12 +88,14 @@ def _parse_filename(filename: str) -> dict:
 
 
 def _noise_from_p(p: float, p_bell_z: float) -> NoiseParams:
-    """X/Y Bell channels = p/2; p_bell_z is set independently; p_1 = p/10."""
+    """biased_bell_v2: X/Y Bell channels = p/2; p_bell_z independent;
+    p_data_z = p; p_internal = 0; p_1 = p/10."""
     return NoiseParams(
         p_bell_x=p / 2,
         p_bell_y=p / 2,
         p_bell_z=p_bell_z,
-        p_internal=p,
+        p_data_z=p,
+        p_internal=0.0,
         p_m=p,
         p_1=p / 10,
         p_init=p,
@@ -109,7 +112,7 @@ def _process(
     circuit = stim.Circuit.from_file(str(in_path))
     translated = translate_circuit(circuit, noise)
 
-    out_stem = f"{in_path.stem}_biased_bell_p={p}_pbz={p_bell_z}"
+    out_stem = f"{in_path.stem}_biased_bell_v2_p={p}_pbz={p_bell_z}"
     out_circuit_path = out_dir / f"{out_stem}.stim"
     out_meta_path = out_dir / f"{out_stem}.json"
 
@@ -119,7 +122,7 @@ def _process(
     metadata = {
         "p": p,
         "p_bell_z": p_bell_z,
-        "noise_model": "biased_bell",
+        "noise_model": "biased_bell_v2",
         "noise_params": noise.to_dict(),
         "translation": "bell",
         "code_family": "semi_hyperbolic_floquet",

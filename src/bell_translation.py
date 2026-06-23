@@ -2,7 +2,7 @@
 
 Replaces MPP / MXX / MZZ / MYY (2-body) instructions with circuits that
 implement the same measurement using a Bell pair shared between two
-ancilla qubits, optionally adding the `biased_bell` noise model inline.
+ancilla qubits, optionally adding the `biased_bell_v2` noise model inline.
 
 A 2-body MPP measurement produces 2 ancilla measurement records (instead
 of 1 logical record). To preserve the meaning of every DETECTOR /
@@ -57,6 +57,9 @@ class NoiseParams:
     p_bell_x: float = 0.0
     p_bell_y: float = 0.0
     p_bell_z: float = 0.0
+    # Z_ERROR applied to the two participating data qubits during Bell-pair
+    # prep (v2 channel; v1 left this implicit via p_internal).
+    p_data_z: float = 0.0
     p_internal: float = 0.0
     p_m: float = 0.0
     p_1: float = 0.0
@@ -74,6 +77,7 @@ class NoiseParams:
             "p_bell_x": self.p_bell_x,
             "p_bell_y": self.p_bell_y,
             "p_bell_z": self.p_bell_z,
+            "p_data_z": self.p_data_z,
             "p_internal": self.p_internal,
             "p_m": self.p_m,
             "p_1": self.p_1,
@@ -246,7 +250,7 @@ def _xx_to_buf(
     buf.append(f"R {anc2}")
     buf.append(f"CX {anc1} {anc2}")
     if noise is not None:
-        _init_noise_to_buf(buf, anc2, noise)
+        _bell_prep_noise_to_buf(buf, anc2, a, b, noise)
     buf.append(f"CX {anc1} {a}")
     if noise is not None and noise.p_internal > 0:
         buf.append(f"DEPOLARIZE2({noise.p_internal}) {anc1} {a}")
@@ -268,7 +272,7 @@ def _zz_to_buf(
     buf.append(f"R {anc2}")
     buf.append(f"CX {anc1} {anc2}")
     if noise is not None:
-        _init_noise_to_buf(buf, anc2, noise)
+        _bell_prep_noise_to_buf(buf, anc2, a, b, noise)
     buf.append(f"CX {a} {anc1}")
     if noise is not None and noise.p_internal > 0:
         buf.append(f"DEPOLARIZE2({noise.p_internal}) {a} {anc1}")
@@ -290,7 +294,7 @@ def _yy_to_buf(
     buf.append(f"RX {anc1}")
     buf.append(f"CX {anc1} {anc2}")
     if noise is not None:
-        _init_noise_to_buf(buf, anc2, noise)
+        _bell_prep_noise_to_buf(buf, anc2, a, b, noise)
     buf.append(f"S {a} {b}")
     if noise is not None and noise.p_1 > 0:
         buf.append(f"DEPOLARIZE1({noise.p_1}) {a} {b}")
@@ -308,12 +312,16 @@ def _yy_to_buf(
         buf.append(f"DEPOLARIZE1({noise.p_1}) {a} {b}")
 
 
-def _init_noise_to_buf(buf: list[str], qubit: int, noise: NoiseParams) -> None:
-    if noise.p_bell_x == 0 and noise.p_bell_y == 0 and noise.p_bell_z == 0:
-        return
-    buf.append(
-        f"PAULI_CHANNEL_1({noise.p_bell_x}, {noise.p_bell_y}, {noise.p_bell_z}) {qubit}"
-    )
+def _bell_prep_noise_to_buf(
+    buf: list[str], anc_qubit: int, data_a: int, data_b: int, noise: NoiseParams,
+) -> None:
+    """Bell-pair-prep noise: PAULI_CHANNEL_1 on one ancilla + Z_ERROR on data."""
+    if noise.p_bell_x != 0 or noise.p_bell_y != 0 or noise.p_bell_z != 0:
+        buf.append(
+            f"PAULI_CHANNEL_1({noise.p_bell_x}, {noise.p_bell_y}, {noise.p_bell_z}) {anc_qubit}"
+        )
+    if noise.p_data_z != 0:
+        buf.append(f"Z_ERROR({noise.p_data_z}) {data_a} {data_b}")
 
 
 def _reset_noise_to_buf(

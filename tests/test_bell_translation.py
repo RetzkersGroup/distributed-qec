@@ -225,6 +225,19 @@ class TestNoiseInjection:
         tr = translate_circuit(src, noise)
         assert _has_instruction(tr, "DEPOLARIZE2")
 
+    def test_p_data_z_on_data_qubits(self):
+        # v2 channel: Z_ERROR(p_data_z) applied to the two participating
+        # data qubits during Bell-pair prep.
+        src = stim.Circuit("R 0 1\nMPP Z0*Z1\nDETECTOR rec[-1]")
+        noise = NoiseParams(p_data_z=0.04)
+        tr = translate_circuit(src, noise)
+        z_err_ops = _instructions_with_name(tr, "Z_ERROR")
+        # Exactly one Z_ERROR(0.04) on data qubits {0, 1}.
+        matching = [op for op in z_err_ops if op.gate_args_copy() == [0.04]]
+        assert len(matching) == 1
+        qubits = {t.qubit_value for t in matching[0].targets_copy()}
+        assert qubits == {0, 1}
+
     def test_p_m(self):
         src = stim.Circuit("R 0 1\nMPP Z0*Z1\nM 0\nDETECTOR rec[-1]")
         noise = NoiseParams(p_m=0.01)
