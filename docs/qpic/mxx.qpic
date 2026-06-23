@@ -1,24 +1,30 @@
-a W D1
-b W D2
-a b G \rotatebox{90}{$M_{ZZ}$}
-c W |+\rangle
-d W |0\rangle
+d1 W D1
+a1 W 
+a2 W 
+d2 W D2
+d1 d2 START
 
-a b END
+d1 d2 G \rotatebox{90}{$M_{XX}$}
+
+
+
+d1 d2 END
+
 =
-a b c d START
+d1 a1 a2 d2 START
 
-a W a
-b W b
+#cant find a way to do a1 d1 so I do it like this and edit it with inkscape
+a1 a2 W |00\rangle+|11\rangle<
+#a2 d2 W chip<
 
 
 # Bell pair on the ancillas.
-c +d
+# c +d
 
 # Stitch each ancilla to its data partner.
-c +a
-d +b
+a1 +d1
+a2 +d2
 
 # Measure both ancillas in the X basis.
-c M $X$
-d M $X$
+a1 M $X$
+a2 M $X$
