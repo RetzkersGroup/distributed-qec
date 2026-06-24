@@ -6,7 +6,8 @@ measurement scheme at multiple physical error rates, and writes the
 output circuits + metadata JSONs.
 
 The noise parameters are derived from a physical error rate `p` and an
-independent Z-bias `p_bell_z` (biased_bell_v2):
+independent Z-bias `p_bell_z` (biased_bell_v3 by default; v2 selectable
+via `--mzz-gadget v2`; only the MZZ gadget shape differs):
   - p_bell_x = p_bell_y = p / 2         (Bell-pair prep noise, X/Y)
   - p_bell_z = p_bell_z                 (Bell-pair prep noise, Z; set independently)
   - p_data_z = p                         (Z_ERROR on the two data qubits during Bell prep)
@@ -87,8 +88,8 @@ def _parse_filename(filename: str) -> dict:
     return params
 
 
-def _noise_from_p(p: float, p_bell_z: float) -> NoiseParams:
-    """biased_bell_v2: X/Y Bell channels = p/2; p_bell_z independent;
+def _noise_from_p(p: float, p_bell_z: float, mzz_gadget: str) -> NoiseParams:
+    """biased_bell_v3 (default) / v2: X/Y Bell channels = p/2; p_bell_z independent;
     p_data_z = p; p_internal = 0; p_1 = p/10."""
     return NoiseParams(
         p_bell_x=p / 2,
@@ -99,6 +100,7 @@ def _noise_from_p(p: float, p_bell_z: float) -> NoiseParams:
         p_m=p,
         p_1=p / 10,
         p_init=p,
+        mzz_gadget=mzz_gadget,
     )
 
 
@@ -107,12 +109,14 @@ def _process(
     p: float,
     p_bell_z: float,
     out_dir: pathlib.Path,
+    mzz_gadget: str,
 ) -> None:
-    noise = _noise_from_p(p, p_bell_z)
+    noise = _noise_from_p(p, p_bell_z, mzz_gadget)
     circuit = stim.Circuit.from_file(str(in_path))
     translated = translate_circuit(circuit, noise)
 
-    out_stem = f"{in_path.stem}_biased_bell_v2_p={p}_pbz={p_bell_z}"
+    model_name = "biased_bell_v2" if mzz_gadget == "v2" else "biased_bell_v3"
+    out_stem = f"{in_path.stem}_{model_name}_p={p}_pbz={p_bell_z}"
     out_circuit_path = out_dir / f"{out_stem}.stim"
     out_meta_path = out_dir / f"{out_stem}.json"
 
@@ -122,7 +126,8 @@ def _process(
     metadata = {
         "p": p,
         "p_bell_z": p_bell_z,
-        "noise_model": "biased_bell_v2",
+        "noise_model": model_name,
+        "mzz_gadget": mzz_gadget,
         "noise_params": noise.to_dict(),
         "translation": "bell",
         "code_family": "semi_hyperbolic_floquet",
@@ -168,6 +173,10 @@ def main() -> None:
         "--output-dir", default="out/circuits/hyperbolic_floquet",
         help="Output directory (default: out/circuits/hyperbolic_floquet).",
     )
+    parser.add_argument(
+        "--mzz-gadget", default="v3", choices=["v2", "v3"], dest="mzz_gadget",
+        help="MZZ gadget shape (default: v3 = biased_bell_v3).",
+    )
 
     args = parser.parse_args()
     inputs = _resolve_inputs(args.input)
@@ -180,7 +189,7 @@ def main() -> None:
     for in_path in inputs:
         print(f"{in_path.name}:")
         for p in args.p_values:
-            _process(in_path, p, args.p_bell_z, out_dir)
+            _process(in_path, p, args.p_bell_z, out_dir, args.mzz_gadget)
 
 
 if __name__ == "__main__":

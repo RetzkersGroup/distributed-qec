@@ -1,0 +1,36 @@
+d1 W D1
+a1 W
+d2 W D2
+a2 W
+d3 W D3
+a3 W
+d4 W D4
+a4 W
+d1 d2 d3 d4 START
+
+d1 d2 d3 d4 G \rotatebox{90}{$M_{XXXX}$}
+
+
+
+d1 d2 d3 d4 END
+
+=
+d1 d2 d3 d4 a1 a2 a3 a4 START
+
+#cant find a way to do a1 d1 so I do it like this and edit it with inkscape
+a1 a2 a3 a4 W |0000\rangle+|1111\rangle<
+
+
+# GHZ state on the ancillas.
+
+# Stitch each ancilla to its data partner.
+a1 +d1
+a2 +d2
+a3 +d3
+a4 +d4
+
+# Measure all ancillas in the X basis.
+a1 M $X$
+a2 M $X$
+a3 M $X$
+a4 M $X$

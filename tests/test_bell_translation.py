@@ -121,8 +121,9 @@ class TestAncillaAllocation:
         tr = translate_circuit(src)
         assert tr.num_qubits == 8  # 4 data + 4 ancilla
 
-    def test_ancilla_indices_correct(self):
+    def test_ancilla_indices_correct_v3(self):
         # With 4 data qubits, ancilla for q0 = 4, q1 = 5, q2 = 6, q3 = 7.
+        # v3 MZZ: ancilla controls, data targets (after H-conjugation).
         src = stim.Circuit("""
             R 0 1 2 3
             MPP Z0*Z2
@@ -132,9 +133,22 @@ class TestAncillaAllocation:
         cx_pairs = _all_cx_targets(tr)
         # Bell-pair CX: anc(0)=4 -> anc(2)=6
         assert (4, 6) in cx_pairs
-        # Data-ancilla CX: data 0 -> anc(0)=4 (ZZ: data controls)
+        # v3 ancilla->data CX: anc(0)=4 -> data 0
+        assert (4, 0) in cx_pairs
+        # v3 ancilla->data CX: anc(2)=6 -> data 2
+        assert (6, 2) in cx_pairs
+
+    def test_ancilla_indices_correct_v2(self):
+        # v2 MZZ: data controls, ancilla targets (original biased_bell_v2 form).
+        src = stim.Circuit("""
+            R 0 1 2 3
+            MPP Z0*Z2
+            DETECTOR rec[-1]
+        """)
+        tr = translate_circuit(src, NoiseParams(mzz_gadget="v2"))
+        cx_pairs = _all_cx_targets(tr)
+        assert (4, 6) in cx_pairs
         assert (0, 4) in cx_pairs
-        # Data-ancilla CX: data 2 -> anc(2)=6
         assert (2, 6) in cx_pairs
 
 
@@ -349,6 +363,125 @@ class TestAllowlistRejection:
         src = stim.Circuit("R 0 1 2\nMPP X0*X1*X2\nDETECTOR rec[-1]")
         with pytest.raises(ValueError, match="length 3"):
             translate_circuit(src)
+
+
+class TestMzzGadget:
+    """Tests for the v3 (default) and v2 MZZ gadget shapes."""
+
+    def test_v3_default_emits_h_on_data(self):
+        src = stim.Circuit("R 0 1\nMPP Z0*Z1\nDETECTOR rec[-1]")
+        tr = translate_circuit(src)
+        h_ops = _instructions_with_name(tr, "H")
+        # v3 sandwiches the ancilla<->data CX in two H's on the data qubits.
+        h_data = [op for op in h_ops if all(
+            t.qubit_value < 2 for t in op.targets_copy()
+        )]
+        assert len(h_data) == 2
+
+    def test_v3_default_uses_mx_for_zz(self):
+        src = stim.Circuit("R 0 1\nMPP Z0*Z1\nDETECTOR rec[-1]")
+        tr = translate_circuit(src)
+        # v3 MZZ reads the ancillas in the X basis.
+        assert _has_instruction(tr, "MX")
+        # v2-style M would only be generated when a separate Z-basis
+        # single-qubit measurement is present; this circuit has none.
+        assert not _has_instruction(tr, "M")
+
+    def test_v2_uses_z_basis_meas_no_h(self):
+        src = stim.Circuit("R 0 1\nMPP Z0*Z1\nDETECTOR rec[-1]")
+        tr = translate_circuit(src, NoiseParams(mzz_gadget="v2"))
+        assert _has_instruction(tr, "M")
+        # v2 has no H gates around the ZZ block.
+        assert not _has_instruction(tr, "H")
+
+    def test_v3_p_1_on_data_h_gates(self):
+        # p_1 should produce DEPOLARIZE1 on the data qubits inside the v3
+        # MZZ gadget (one DEPOLARIZE1 after each H pair).
+        src = stim.Circuit("R 0 1\nMPP Z0*Z1\nDETECTOR rec[-1]")
+        tr = translate_circuit(src, NoiseParams(p_1=0.01))
+        dep1 = _instructions_with_name(tr, "DEPOLARIZE1")
+        # Each DEPOLARIZE1 on data qubits {0, 1} with arg 0.01.
+        gadget_dep1 = [op for op in dep1 if op.gate_args_copy() == [0.01]
+                       and {t.qubit_value for t in op.targets_copy()} == {0, 1}]
+        assert len(gadget_dep1) == 2
+
+    def test_v3_deterministic_repeated_mzz(self):
+        # Multi-round MZZ: v3 must keep deterministic detectors.
+        src = stim.Circuit("""
+            R 0 1
+            MZZ 0 1
+            REPEAT 3 {
+                MZZ 0 1
+                DETECTOR rec[-1] rec[-2]
+            }
+        """)
+        tr = translate_circuit(src)
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_v2_deterministic_repeated_mzz(self):
+        src = stim.Circuit("""
+            R 0 1
+            MZZ 0 1
+            REPEAT 3 {
+                MZZ 0 1
+                DETECTOR rec[-1] rec[-2]
+            }
+        """)
+        tr = translate_circuit(src, NoiseParams(mzz_gadget="v2"))
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_invalid_gadget_rejected(self):
+        src = stim.Circuit("R 0 1\nMPP Z0*Z1\nDETECTOR rec[-1]")
+        with pytest.raises(ValueError, match="mzz_gadget"):
+            translate_circuit(src, NoiseParams(mzz_gadget="v9"))
+
+
+class TestOneBodyMPP:
+    def test_one_body_z_translates_to_m(self):
+        src = stim.Circuit("R 0\nMPP Z0\nDETECTOR rec[-1]")
+        tr = translate_circuit(src)
+        # 1-body MPP -> direct single-qubit M; no ancilla added.
+        assert tr.num_qubits == 1
+        assert tr.num_measurements == 1
+        assert _has_instruction(tr, "M")
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_one_body_x_translates_to_mx(self):
+        src = stim.Circuit("RX 0\nMPP X0\nDETECTOR rec[-1]")
+        tr = translate_circuit(src)
+        assert tr.num_qubits == 1
+        assert _has_instruction(tr, "MX")
+
+    def test_one_body_y_translates_to_my(self):
+        src = stim.Circuit("R 0\nH 0\nS 0\nMPP Y0\nDETECTOR rec[-1]")
+        tr = translate_circuit(src)
+        assert _has_instruction(tr, "MY")
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_mixed_one_and_two_body_in_same_mpp(self):
+        # The honeycomb_gidney circuits intermix 1- and 2-body products
+        # inside a single MPP instruction.
+        src = stim.Circuit("""
+            R 0 1 2
+            MPP Z0 Z1*Z2
+            DETECTOR rec[-1]
+            DETECTOR rec[-2]
+        """)
+        tr = translate_circuit(src)
+        # 1 (1-body) + 2 (2-body) = 3 measurement records.
+        assert tr.num_measurements == 3
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_one_body_p_m(self):
+        src = stim.Circuit("R 0\nMPP Z0\nDETECTOR rec[-1]")
+        tr = translate_circuit(src, NoiseParams(p_m=0.02))
+        m_ops = _instructions_with_name(tr, "M")
+        assert any(op.gate_args_copy() == [0.02] for op in m_ops)
 
     def test_mixed_basis_mpp_rejected(self):
         src = stim.Circuit("R 0 1\nMPP X0*Z1\nDETECTOR rec[-1]")

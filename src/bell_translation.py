@@ -2,7 +2,9 @@
 
 Replaces MPP / MXX / MZZ / MYY (2-body) instructions with circuits that
 implement the same measurement using a Bell pair shared between two
-ancilla qubits, optionally adding the `biased_bell_v2` noise model inline.
+ancilla qubits, optionally adding the `biased_bell_v3` noise model inline
+(or v2 — selectable via `NoiseParams.mzz_gadget`; v3 is the default and
+only changes the MZZ gadget's shape, not the noise channels).
 
 A 2-body MPP measurement produces 2 ancilla measurement records (instead
 of 1 logical record). To preserve the meaning of every DETECTOR /
@@ -65,6 +67,11 @@ class NoiseParams:
     p_1: float = 0.0
     # Data-qubit state-preparation noise: X_ERROR after R, Z_ERROR after RX.
     p_init: float = 0.0
+    # MZZ gadget shape: "v2" -> data->ancilla CX + Z-basis readout
+    # (the original biased_bell_v2 form);
+    # "v3" -> H-conjugated data + ancilla->data CX + X-basis readout
+    # (default; matches biased_bell_v3 in context.md).
+    mzz_gadget: str = "v3"
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "NoiseParams | None":
@@ -82,6 +89,7 @@ class NoiseParams:
             "p_m": self.p_m,
             "p_1": self.p_1,
             "p_init": self.p_init,
+            "mzz_gadget": self.mzz_gadget,
         }
 
 
@@ -122,13 +130,21 @@ def _translate_flat(
     for op in circuit:
         name = op.name
         if name in PAIRWISE_MEASUREMENT_NAMES:
-            pairs = _extract_pairs(op)
-            for basis, a, b in pairs:
-                anc1 = num_data + a
-                anc2 = num_data + b
-                _bell_block_to_buf(buf, basis, a, b, anc1, anc2, noise)
-                measurement_map.append([new_meas_count, new_meas_count + 1])
-                new_meas_count += 2
+            products = _extract_products(op)
+            for basis, qubits in products:
+                if len(qubits) == 2:
+                    a, b = qubits
+                    anc1 = num_data + a
+                    anc2 = num_data + b
+                    _bell_block_to_buf(buf, basis, a, b, anc1, anc2, noise)
+                    measurement_map.append(
+                        [new_meas_count, new_meas_count + 1]
+                    )
+                    new_meas_count += 2
+                else:  # len(qubits) == 1: 1-body MPP product
+                    _single_pauli_meas_to_buf(buf, basis, qubits[0], noise)
+                    measurement_map.append([new_meas_count])
+                    new_meas_count += 1
         elif name in _SINGLE_QUBIT_MEAS_NAMES:
             qubits = [t.qubit_value for t in op.targets_copy()]
             p_m = noise.p_m if noise is not None else 0.0
@@ -170,8 +186,15 @@ def _translate_flat(
     return stim.Circuit("\n".join(buf))
 
 
-def _extract_pairs(op: stim.CircuitInstruction) -> list[tuple[str, int, int]]:
-    """Return list of (basis, q1, q2) for each 2-body product in the op."""
+def _extract_products(
+    op: stim.CircuitInstruction,
+) -> list[tuple[str, list[int]]]:
+    """Return list of (basis, [qubit, ...]) for each product in the op.
+
+    Bell translation supports 1-body and 2-body products. 2-body products
+    must be same-basis (XX/YY/ZZ); 1-body products are translated to a
+    direct single-qubit measurement.
+    """
     name = op.name
     targets = op.targets_copy()
 
@@ -190,29 +213,34 @@ def _extract_pairs(op: stim.CircuitInstruction) -> list[tuple[str, int, int]]:
             products[-1].append(t)
             prev_was_pauli = True
 
-        pairs: list[tuple[str, int, int]] = []
+        out: list[tuple[str, list[int]]] = []
         for prod in products:
-            if len(prod) != 2:
-                raise ValueError(
-                    f"Bell translation only supports 2-body MPP products; "
-                    f"got product of length {len(prod)}."
+            if len(prod) == 1:
+                out.append((_pauli_of(prod[0]), [prod[0].qubit_value]))
+            elif len(prod) == 2:
+                basis = _pauli_of(prod[0])
+                basis2 = _pauli_of(prod[1])
+                if basis != basis2:
+                    raise ValueError(
+                        f"Bell translation only supports same-basis 2-body MPP "
+                        f"products (XX, YY, ZZ); got {basis}{basis2}."
+                    )
+                out.append(
+                    (basis, [prod[0].qubit_value, prod[1].qubit_value])
                 )
-            basis = _pauli_of(prod[0])
-            basis2 = _pauli_of(prod[1])
-            if basis != basis2:
+            else:
                 raise ValueError(
-                    f"Bell translation only supports same-basis 2-body MPP "
-                    f"products (XX, YY, ZZ); got {basis}{basis2}."
+                    f"Bell translation only supports 1- or 2-body MPP "
+                    f"products; got product of length {len(prod)}."
                 )
-            pairs.append((basis, prod[0].qubit_value, prod[1].qubit_value))
-        return pairs
+        return out
 
     # MXX / MZZ / MYY: targets are bare qubits, paired up.
     basis = name[1]  # 'X', 'Y', or 'Z'
     if len(targets) % 2 != 0:
         raise ValueError(f"{name} requires an even number of targets.")
     return [
-        (basis, targets[i].qubit_value, targets[i + 1].qubit_value)
+        (basis, [targets[i].qubit_value, targets[i + 1].qubit_value])
         for i in range(0, len(targets), 2)
     ]
 
@@ -268,6 +296,22 @@ def _zz_to_buf(
     buf: list[str], a: int, b: int, anc1: int, anc2: int,
     noise: NoiseParams | None,
 ) -> None:
+    gadget = noise.mzz_gadget if noise is not None else "v3"
+    if gadget == "v2":
+        _zz_to_buf_v2(buf, a, b, anc1, anc2, noise)
+    elif gadget == "v3":
+        _zz_to_buf_v3(buf, a, b, anc1, anc2, noise)
+    else:
+        raise ValueError(
+            f"NoiseParams.mzz_gadget must be 'v2' or 'v3'; got {gadget!r}."
+        )
+
+
+def _zz_to_buf_v2(
+    buf: list[str], a: int, b: int, anc1: int, anc2: int,
+    noise: NoiseParams | None,
+) -> None:
+    """biased_bell_v2 MZZ gadget: data->ancilla CX + Z-basis readout."""
     buf.append(f"RX {anc1}")
     buf.append(f"R {anc2}")
     buf.append(f"CX {anc1} {anc2}")
@@ -284,6 +328,35 @@ def _zz_to_buf(
         buf.append(f"M({p_m}) {anc1} {anc2}")
     else:
         buf.append(f"M {anc1} {anc2}")
+
+
+def _zz_to_buf_v3(
+    buf: list[str], a: int, b: int, anc1: int, anc2: int,
+    noise: NoiseParams | None,
+) -> None:
+    """biased_bell_v3 MZZ gadget: H-conjugate data, ancilla->data CX, X-basis readout."""
+    buf.append(f"RX {anc1}")
+    buf.append(f"R {anc2}")
+    buf.append(f"CX {anc1} {anc2}")
+    if noise is not None:
+        _bell_prep_noise_to_buf(buf, anc2, a, b, noise)
+    buf.append(f"H {a} {b}")
+    if noise is not None and noise.p_1 > 0:
+        buf.append(f"DEPOLARIZE1({noise.p_1}) {a} {b}")
+    buf.append(f"CX {anc1} {a}")
+    if noise is not None and noise.p_internal > 0:
+        buf.append(f"DEPOLARIZE2({noise.p_internal}) {anc1} {a}")
+    buf.append(f"CX {anc2} {b}")
+    if noise is not None and noise.p_internal > 0:
+        buf.append(f"DEPOLARIZE2({noise.p_internal}) {anc2} {b}")
+    buf.append(f"H {a} {b}")
+    if noise is not None and noise.p_1 > 0:
+        buf.append(f"DEPOLARIZE1({noise.p_1}) {a} {b}")
+    p_m = noise.p_m if noise is not None else 0.0
+    if p_m > 0:
+        buf.append(f"MX({p_m}) {anc1} {anc2}")
+    else:
+        buf.append(f"MX {anc1} {anc2}")
 
 
 def _yy_to_buf(
@@ -310,6 +383,22 @@ def _yy_to_buf(
     buf.append(f"S_DAG {a} {b}")
     if noise is not None and noise.p_1 > 0:
         buf.append(f"DEPOLARIZE1({noise.p_1}) {a} {b}")
+
+
+def _single_pauli_meas_to_buf(
+    buf: list[str], basis: str, q: int, noise: NoiseParams | None,
+) -> None:
+    """1-body MPP product: emit a direct single-qubit measurement on `q`.
+
+    No Bell pair, no ancilla. Uses M/MX/MY for Z/X/Y respectively, with
+    the measurement-flip channel `p_m`.
+    """
+    inst = {"X": "MX", "Y": "MY", "Z": "M"}[basis]
+    p_m = noise.p_m if noise is not None else 0.0
+    if p_m > 0:
+        buf.append(f"{inst}({p_m}) {q}")
+    else:
+        buf.append(f"{inst} {q}")
 
 
 def _bell_prep_noise_to_buf(

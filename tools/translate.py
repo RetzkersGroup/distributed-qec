@@ -3,7 +3,8 @@
 
 Reads one or more stim circuits (with optional sidecar .json metadata),
 strips noise, replaces every 2-body MPP / MXX / MZZ / MYY with a
-Bell-mediated equivalent, and applies the `biased_bell_v2` noise model.
+Bell-mediated equivalent, and applies the `biased_bell_v3` noise model
+(or v2; the only difference is the MZZ gadget shape).
 Writes each translated circuit plus a merged metadata json.
 
 `--input` accepts:
@@ -127,13 +128,18 @@ def main() -> None:
         help="Directory to write translated circuits and metadata into.",
     )
     parser.add_argument(
-        "--output-suffix", default="biased_bell_v2",
-        help="Suffix appended to each output filename (default: biased_bell_v2).",
+        "--output-suffix", default="biased_bell_v3",
+        help="Suffix appended to each output filename (default: biased_bell_v3).",
     )
 
-    parser.add_argument("--noise-model", default="biased_bell_v2",
-                        choices=["biased_bell_v2"],
-                        help="Noise model name (only biased_bell_v2 currently).")
+    parser.add_argument("--noise-model", default="biased_bell_v3",
+                        choices=["biased_bell_v2", "biased_bell_v3"],
+                        help="Noise model name. v3 (default) and v2 share noise "
+                             "channels; only the MZZ gadget shape differs.")
+    parser.add_argument("--mzz-gadget", default=None,
+                        choices=["v2", "v3"], dest="mzz_gadget",
+                        help="MZZ gadget shape. Defaults to match --noise-model "
+                             "(biased_bell_v2 -> v2, biased_bell_v3 -> v3).")
     parser.add_argument("--p-bell-x", type=float, default=0.0,
                         help="X component of Bell-pair prep noise.")
     parser.add_argument("--p-bell-y", type=float, default=0.0,
@@ -171,6 +177,11 @@ def main() -> None:
     out_dir = pathlib.Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if args.mzz_gadget is None:
+        mzz_gadget = "v2" if args.noise_model == "biased_bell_v2" else "v3"
+    else:
+        mzz_gadget = args.mzz_gadget
+
     noise = None
     if not args.noiseless:
         noise = NoiseParams(
@@ -182,6 +193,7 @@ def main() -> None:
             p_m=args.p_m,
             p_1=args.p_1,
             p_init=args.p_init,
+            mzz_gadget=mzz_gadget,
         )
 
     for in_path in inputs:

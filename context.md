@@ -23,7 +23,7 @@ MX 2 3
 ```
 where 2 and 3 are ancilla qubits (and they can have other indexes, like, the first free index in the circuit so they won't collide).
 
-For MZZ, the bell state is the same (|00>+|11> = |++>+|-->), but the CNOTs are flipped and measurements are in the Z basis:
+For MZZ in `biased_bell_v3`, the data qubits are H-conjugated so the same ancilla→data CX pattern as MXX can be reused:
 ```
 MZZ 0 1
 ```
@@ -32,25 +32,27 @@ turns into
 RX 2
 R 3
 CX 2 3
-CX 0 2
-CX 1 3
-M 2 3
+H 1 0
+CX 2 0
+CX 3 1
+H 1 0
+MX 2 3
 ```
-(CNOT direction is reversed: data→ancilla, and measurement is in Z basis.)
+(H gates on data conjugate Z↔X, so XX-style readout on the Bell pair measures ZZ on the original data. See Appendix B for the v2 form, which used reversed-direction CX and a Z-basis measurement.)
 
 For MYY, S gates on the data qubits conjugate Y to X, allowing the Bell pair to measure in the Y basis:
 ```
-MYY 0 2
+MYY 0 1
 ```
-turns into (qubits 0,2 are data; qubits 1,3 are ancilla):
+turns into
 ```
 R 3
-RX 1
-CX 1 3
-S 0 2
-CX 3 2 1 0
-MX 3 1
-S_DAG 0 2
+RX 2
+CX 2 3
+S 0 1
+CX 3 1 2 0
+MX 3 2
+S_DAG 0 1
 ```
 
 ## Second approach - shor-style measurements (GHZ-based)
@@ -92,9 +94,11 @@ Look [here](https://github.com/shohamjac/stairway-codes/tree/main) for example i
 
 ## Noise
 
-The noise model is called `biased_bell_v2`.
+The noise model is called `biased_bell_v3`.
 
 The general approach is that each data qubit `q` sits on a "site" which holds exactly one dedicated ancilla at qubit index `num_data + q`. A pairwise measurement on data qubits `(q1, q2)` always uses ancillas `(num_data + q1, num_data + q2)`. The same ancilla is reused across all measurement rounds (reset at the start of each Bell block). The Bell state is generated between the two ancilla sites and used to jointly-measure the data qubits.
+
+The only difference between `biased_bell_v3` and the v2 model (Appendix B) is the **MZZ gadget**: v3 sandwiches the ancilla↔data CX block in `H` gates on the data qubits and reads out in the X basis (so the Bell measurement form is identical to the MXX gadget). v2 instead reversed the CX direction and read out in the Z basis. The noise channels are unchanged.
 
 ### Noise parameterization
 
@@ -108,7 +112,7 @@ The model is controlled by two parameters: **`p`** (physical error rate) and **`
 | `p_data_z` | `p` | Z_ERROR on the two participating data qubits during Bell-pair prep |
 | `p_internal` | `0` | 2-qubit depolarizing after ancilla↔data CX (specified parameter, default 0) |
 | `p_m` | `p` | Measurement flip probability |
-| `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates |
+| `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates (including the MZZ-gadget H gates) |
 | `p_init` | `p` | Data-qubit state-prep noise (X_ERROR after R, Z_ERROR after RX) |
 
 After Bell-pair creation (and before the ancilla↔data CX gates), apply:
@@ -116,7 +120,7 @@ After Bell-pair creation (and before the ancilla↔data CX gates), apply:
 - `PAULI_CHANNEL_1(p_bell_x, p_bell_y, p_bell_z)` on one ancilla qubit, and
 - `Z_ERROR(p)` on the two data qubits participating in the measurement.
 
-The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`. `p_internal` is retained as a specified parameter (defaulting to `0` in v2) so the v1 channel can still be turned on if desired.
+The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`. `p_internal` is retained as a specified parameter (defaulting to `0`) so the v1 channel can still be turned on if desired. The H gates introduced for the MZZ gadget pick up `DEPOLARIZE1(p_1)` like any other single-qubit gate.
 
 ### GHZ noise model
 
@@ -166,11 +170,54 @@ input circuit + metadata → translate method (adds noise, updates metadata) →
 
 **Milestone 3:** GHZ-based measurements (TBD).
 
+
+# Threshold plot
+
+We will create threshold plots for the `biased_bell_v3` noise model, following the same workflow used for `flexible_pairwise` (see [threshold_compare.md](./threshold_compare.md) and `tools/make_threshold_circuits.py`).
+
+## Parameter space
+
+Unlike `flexible_pairwise`, which has three independent noise channels and therefore lives on a 2-simplex of directions, `biased_bell_v3` has only **two** parameters:
+
+- `p` — the overall physical error rate that scales most channels
+- `p_bell_z` — the Z-component of the Bell-pair prep noise, set independently of `p`
+
+So the parameter space is the 2D plane `(p, p_bell_z)`. To match the threshold-scan idiom, we pick a small set of "directions" through this plane and sweep `p` along each direction:
+
+- We parameterize each direction by a **bias** `β = p_bell_z / p`. For a chosen `β`, we set `p_bell_z = β · p` and sweep `p`.
+- A useful set of biases covers `β ∈ {0, 1, 10, 100, ...}`, including the unbiased case (`β = 0`, plain Z-prep noise off) and several Z-biased regimes that probe the noise asymmetry the model is designed to study.
+- Optionally we also include a few **fixed `p_bell_z`** scans (e.g., `p_bell_z = 0.001` or `0.01`) where `p_bell_z` is held constant while `p` varies — these are easier to interpret experimentally because `p_bell_z` is often set by hardware independently of the rest of the circuit.
+
+The other channels follow the v2 derivation in the noise section above (`p_bell_x = p_bell_y = p/2`, `p_data_z = p`, `p_internal = 0`, `p_m = p`, `p_1 = p/10`, `p_init = p`).
+
+## Pipeline
+
+```
+input circuit (.stim, noiseless, MPP/MXX/MZZ/MYY)
+    → translate_circuit() with biased_bell_v3 noise at (p, p_bell_z)
+    → write .stim + .json (sidecar metadata) per (circuit, bias, p)
+    → sinter.collect() with pymatching → CSV with metadata
+    → plots: logical error rate vs p, grouped by (distance, bias)
+              and threshold(p_bell_z) curves
+```
+
+This reuses `tools/make_circuits.py` (already takes `--p-values` and `--p-bell-z`) under the hood. The threshold-scan driver — `tools/make_threshold_circuits_bell.py` (analogous to `tools/make_threshold_circuits.py`) — iterates over a list of biases (or fixed `p_bell_z` values) and a `p` sweep, calling the Bell translator for every `(input circuit, bias, p)` triple. Filenames embed `bias` (or `pbz`) and `p` so downstream decoding can group runs.
+
+## What the plots show
+
+Two complementary views are produced from the same data:
+
+1. **Per-bias threshold curves** — for each bias `β`, plot logical error rate vs `p` for several distances; the crossing point is the threshold `p*(β)`. This is the same shape as `notebooks/threshold_comparison.ipynb`, just with `β` (or `p_bell_z`) playing the role of the simplex direction.
+2. **Threshold vs bias** — plot `p*(β)` (or `p*(p_bell_z)` at fixed `p_bell_z`) on a single axis. This is a 2D version of the 3D simplex surface plot in `notebooks/threshold_3d_surface.ipynb` and is the headline figure: it shows how robust the code is to Z-biased Bell-pair prep noise.
+
+See `notebooks/threshold_comparison.ipynb` (per-bias curves) and a new threshold-vs-bias notebook for the full workflow.
+
+
 # Appendix
 
 ## Appendix A: `biased_bell` (v1) noise model
 
-The original Bell-mediated noise model, superseded by `biased_bell_v2` above. Kept here for reference and reproducibility of earlier results.
+The original Bell-mediated noise model, superseded by `biased_bell_v3` above. Kept here for reference and reproducibility of earlier results.
 
 The general approach is that each data qubit `q` sits on a "site" which holds exactly one dedicated ancilla at qubit index `num_data + q`. A pairwise measurement on data qubits `(q1, q2)` always uses ancillas `(num_data + q1, num_data + q2)`. The same ancilla is reused across all measurement rounds (reset at the start of each Bell block). The Bell state is generated between the two ancilla sites and used to jointly-measure the data qubits.
 
@@ -189,3 +236,42 @@ The model is controlled by two parameters: **`p`** (physical error rate) and **`
 | `p_init` | `p` | Data-qubit state-prep noise (X_ERROR after R, Z_ERROR after RX) |
 
 Applied as `PAULI_CHANNEL_1(p_bell_x, p_bell_y, p_bell_z)` on one ancilla qubit after Bell pair creation. The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`.
+
+## Appendix B: `biased_bell_v2` noise model
+
+Predecessor of `biased_bell_v3`. Kept for reference and reproducibility of earlier scans. Only the **MZZ gadget** differs from v3 — the noise channels are identical.
+
+### MZZ gadget (v2)
+
+```
+MZZ 0 1
+```
+turns into
+```
+RX 2
+R 3
+CX 2 3
+CX 0 2
+CX 1 3
+M 2 3
+```
+(CNOT direction is reversed: data→ancilla, and measurement is in Z basis. v3 instead H-conjugates the data qubits and reuses the MXX-style ancilla→data CX pattern with an X-basis readout.)
+
+The MXX and MYY gadgets are the same as in v3.
+
+### Noise parameterization (v2)
+
+Same as v3:
+
+| Channel | Value | Description |
+|---------|-------|-------------|
+| `p_bell_x` | `p / 2` | X-component of Bell-pair prep noise |
+| `p_bell_y` | `p / 2` | Y-component of Bell-pair prep noise |
+| `p_bell_z` | `p_bell_z` | Z-component of Bell-pair prep noise (set independently) |
+| `p_data_z` | `p` | Z_ERROR on the two participating data qubits during Bell-pair prep |
+| `p_internal` | `0` | 2-qubit depolarizing after ancilla↔data CX (specified parameter, default 0) |
+| `p_m` | `p` | Measurement flip probability |
+| `p_1` | `p / 10` | 1-qubit depolarizing after single-qubit gates |
+| `p_init` | `p` | Data-qubit state-prep noise (X_ERROR after R, Z_ERROR after RX) |
+
+After Bell-pair creation (and before the ancilla↔data CX gates), apply `PAULI_CHANNEL_1(p_bell_x, p_bell_y, p_bell_z)` on one ancilla qubit and `Z_ERROR(p)` on the two participating data qubits. Ancilla resets inside the Bell-state preparation are *not* affected by `p_init`.
