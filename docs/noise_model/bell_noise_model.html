@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Circuit Diagram - Bell</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #ffffff;
+            font-family: Arial, sans-serif;
+        }
+        .circuit-wrapper {
+            padding: 20px;
+            overflow-x: auto;
+            max-width: 100vw;
+        }
+        svg {
+            display: block;
+            min-width: 800px;
+            max-width: 100%;
+            height: auto;
+        }
+        /* Circuit Elements Styling */
+        .line { stroke: #000; stroke-width: 1.5; fill: none; }
+        .bg-white { fill: #fff; stroke: #000; stroke-width: 1.5; }
+        .dot { fill: #000; stroke: none; }
+
+        /* Text Styling */
+        .text {
+            fill: #000;
+            stroke: none;
+            font-size: 16px;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        .text-left {
+            fill: #000;
+            stroke: none;
+            font-size: 16px;
+            text-anchor: end;
+            dominant-baseline: middle;
+        }
+    </style>
+</head>
+<body>
+
+<div class="circuit-wrapper">
+    <svg width="850" height="300" viewBox="-130 0 850 300" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- ================= QUBIT LABELS ================= -->
+        <text x="5" y="50" class="text-left">Communication</text>
+        <text x="5" y="100" class="text-left">Communication</text>
+
+        <text x="5" y="180" class="text-left">Data</text>
+        <text x="5" y="240" class="text-left">Data</text>
+
+        <!-- ================= HORIZONTAL LINES ================= -->
+        <!-- Top 2 Lines (Communication Qubits) -->
+        <line x1="20" y1="50" x2="580" y2="50" class="line" />
+        <line x1="620" y1="48" x2="680" y2="48" class="line" />
+        <line x1="620" y1="52" x2="680" y2="52" class="line" />
+
+        <line x1="20" y1="100" x2="580" y2="100" class="line" />
+        <line x1="620" y1="98" x2="680" y2="98" class="line" />
+        <line x1="620" y1="102" x2="680" y2="102" class="line" />
+
+        <!-- Bottom 2 Lines (Data Qubits) -->
+        <line x1="20" y1="180" x2="680" y2="180" class="line" />
+        <line x1="20" y1="240" x2="680" y2="240" class="line" />
+
+        <!-- ================= VERTICAL CNOT CONNECTIONS ================= -->
+        <!-- CNOT 2: Line 2 -> Line 4 -->
+        <line x1="400" y1="100" x2="400" y2="240" class="line" />
+
+        <!-- CNOT 1: Line 1 -> Line 3 -->
+        <line x1="460" y1="50" x2="460" y2="180" class="line" />
+
+        <!-- ================= GATES AND BOXES ================= -->
+
+        <!-- Bell Box -->
+        <rect id="rect-bell" x="40" y="20" width="60" height="110" class="bg-white" />
+        <text id="text-bell" x="70" y="75" class="text">Bell</text>
+
+        <!-- X/Y Boxes -->
+        <rect id="rect-xy-1" x="130" y="35" width="40" height="30" class="bg-white" />
+        <text id="text-xy-1" x="150" y="50" class="text">X/Y</text>
+
+        <rect id="rect-xy-2" x="130" y="85" width="40" height="30" class="bg-white" />
+        <text id="text-xy-2" x="150" y="100" class="text">X/Y</text>
+
+        <!-- Z Boxes -->
+        <rect id="rect-z-1" x="200" y="35" width="30" height="30" class="bg-white" />
+        <text id="text-z-1" x="215" y="50" class="text">Z</text>
+
+        <rect id="rect-z-2" x="200" y="85" width="30" height="30" class="bg-white" />
+        <text id="text-z-2" x="215" y="100" class="text">Z</text>
+
+        <!-- Idle Boxes -->
+        <rect id="rect-idle-1" x="40" y="165" width="45" height="30" class="bg-white" />
+        <text id="text-idle-1" x="62.5" y="180" class="text">Idle</text>
+
+        <rect id="rect-idle-2" x="40" y="225" width="45" height="30" class="bg-white" />
+        <text id="text-idle-2" x="62.5" y="240" class="text">Idle</text>
+
+        <!-- CNOT Control Dots -->
+        <circle cx="460" cy="50" r="4" class="dot" />
+        <circle cx="400" cy="100" r="4" class="dot" />
+
+        <!-- CNOT Targets -->
+        <!-- Target 2 -->
+        <circle cx="400" cy="240" r="10" class="bg-white" />
+        <line x1="400" y1="230" x2="400" y2="250" class="line" />
+        <line x1="390" y1="240" x2="410" y2="240" class="line" />
+
+        <!-- Target 1 -->
+        <circle cx="460" cy="180" r="10" class="bg-white" />
+        <line x1="460" y1="170" x2="460" y2="190" class="line" />
+        <line x1="450" y1="180" x2="470" y2="180" class="line" />
+
+        <!-- D2 Connections -->
+        <line x1="430" y1="115" x2="430" y2="225" class="line" />
+        <line x1="490" y1="65" x2="490" y2="165" class="line" />
+
+        <!-- D2 Boxes after CNOTs -->
+        <!-- After CNOT 2 -->
+        <rect id="rect-d2-c2" x="415" y="85" width="30" height="30" class="bg-white" />
+        <text id="text-d2-c2" x="430" y="100" class="text">D2</text>
+        <rect id="rect-d2-t2" x="415" y="225" width="30" height="30" class="bg-white" />
+        <text id="text-d2-t2" x="430" y="240" class="text">D2</text>
+
+        <!-- After CNOT 1 -->
+        <rect id="rect-d2-c1" x="475" y="35" width="30" height="30" class="bg-white" />
+        <text id="text-d2-c1" x="490" y="50" class="text">D2</text>
+        <rect id="rect-d2-t1" x="475" y="165" width="30" height="30" class="bg-white" />
+        <text id="text-d2-t1" x="490" y="180" class="text">D2</text>
+
+        <!-- H Gates -->
+        <rect id="rect-h-1" x="520" y="35" width="30" height="30" class="bg-white" />
+        <text id="text-h-1" x="535" y="50" class="text">H</text>
+
+        <rect id="rect-h-2" x="520" y="85" width="30" height="30" class="bg-white" />
+        <text id="text-h-2" x="535" y="100" class="text">H</text>
+
+        <!-- Measurement Meters -->
+        <!-- Meter 1 -->
+        <rect id="rect-meter-1" x="580" y="30" width="40" height="40" class="bg-white" />
+        <path d="M 588 60 A 12 12 0 0 1 612 60" class="line" />
+        <line x1="600" y1="65" x2="610" y2="40" class="line" />
+        <polygon points="610,40 604,42 608,46" class="dot" />
+
+        <!-- Meter 2 -->
+        <rect id="rect-meter-2" x="580" y="80" width="40" height="40" class="bg-white" />
+        <path d="M 588 110 A 12 12 0 0 1 612 110" class="line" />
+        <line x1="600" y1="115" x2="610" y2="90" class="line" />
+        <polygon points="610,90 604,92 608,96" class="dot" />
+
+    </svg>
+</div>
+
+<script>
+    // Configuration object to easily control all box colors
+    const boxColors = {
+        'bell': { fill: '#ffffff', text: '#000000' }
+    };
+
+    // Dynamically generate entries for repetitive gates
+    for (let i = 1; i <= 2; i++) {
+        boxColors[`xy-${i}`] = { fill: 'lightgray', text: '#000000' };
+        boxColors[`z-${i}`] = { fill: 'orange', text: '#000000' };
+        boxColors[`idle-${i}`] = { fill: 'lightgray', text: '#000000' };
+        boxColors[`h-${i}`] = { fill: '#FFFFFF', text: '#000000' };
+        boxColors[`meter-${i}`] = { fill: 'lightgray', text: null }; // Meters have no text
+        boxColors[`d2-c${i}`] = { fill: 'lightgray', text: '#000000' }; // D2 on Control
+        boxColors[`d2-t${i}`] = { fill: 'lightgray', text: '#000000' }; // D2 on Target
+    }
+
+    // Function to apply colors dynamically
+    function applyBoxColors() {
+        for (const [id, colors] of Object.entries(boxColors)) {
+            const rectEl = document.getElementById('rect-' + id);
+            if (rectEl) rectEl.style.fill = colors.fill;
+
+            if (colors.text) {
+                const textEl = document.getElementById('text-' + id);
+                if (textEl) textEl.style.fill = colors.text;
+            }
+        }
+    }
+
+    // Apply defaults immediately on load
+    applyBoxColors();
+
+    // Usage Example:
+    // boxColors['bell'].fill = '#e0f7fa';
+    // boxColors['xy-1'].text = '#ff0000';
+    // applyBoxColors();
+</script>
+
+</body>
+</html>

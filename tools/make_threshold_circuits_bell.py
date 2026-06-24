@@ -197,10 +197,20 @@ def main() -> None:
         help="Parallel worker processes (default: cpu_count()).",
     )
     parser.add_argument(
-        "--mzz-gadget", default="v3", choices=["v2", "v3"], dest="mzz_gadget",
-        help="MZZ gadget shape (default: v3 = biased_bell_v3).",
+        "--noise-model", default="biased_bell_v3",
+        choices=["biased_bell_v2", "biased_bell_v3"], dest="noise_model",
+        help="Noise model name (default: biased_bell_v3). Sets the MZZ gadget "
+             "shape; the noise channels are identical between v2 and v3.",
+    )
+    parser.add_argument(
+        "--mzz-gadget", default=None, choices=["v2", "v3"], dest="mzz_gadget",
+        help="Explicit MZZ gadget override. Defaults to match --noise-model "
+             "(biased_bell_v2 -> v2, biased_bell_v3 -> v3).",
     )
     args = parser.parse_args()
+
+    if args.mzz_gadget is None:
+        args.mzz_gadget = "v2" if args.noise_model == "biased_bell_v2" else "v3"
 
     inputs = _resolve_inputs(args.input)
     if not inputs:
