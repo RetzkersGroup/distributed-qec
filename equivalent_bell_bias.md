@@ -38,26 +38,27 @@ For MYY, S gates on the data qubits conjugate Y to X, allowing the Bell pair to 
 ```
 MYY 0 1
 ```
-turns into (qubits 0,2 are data; qubits 1,3 are ancilla):
+turns into (qubits 0,1 are data; qubit 2 is ancilla):
 ```
 R 2
 S 0 1
-YCX 0 2
-YCX 1 2
+XCX 0 2
+XCX 1 2
 <NOISE-OPERATIONS>
 S_DAG 0 1
 M 2
 ```
 
 
-## `biased_bell_v2_equivalent` noise:
+## `biased_bell_v3_equivalent` noise:
 
-This is a noise which is equivalent to the `biased_bell_v2` noise. 
+This is a noise which is equivalent to the `biased_bell_v3` noise. 
 
 ### Noise parameterization
 
-The model is controlled by two parameters: **`p`** (physical error rate) and **`p_bell_z`** (Z-component of Bell-pair prep noise, set independently). The individual noise channels are derived as:
+The model is controlled by two parameters: **`p`** (physical error rate) and **`p_bell_z`** (Z-component of Bell-pair prep noise, set independently). 
 
+Operations including the ancilla are noiseless. Data qubit operations add the following ancilla:
 | Channel | Value | Description |
 |---------|-------|-------------|
 | `p_m` | `p` | Measurement flip probability |
@@ -76,7 +77,7 @@ E(p) Z1 X2
 ```
 where 2 is the ancilla index, 0 and 1 are the ....
 
-The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`. `p_internal` is retained as a specified parameter (defaulting to `0` in v2) so the v1 channel can still be turned on if desired.
+The ancilla resets inside the Bell-state preparation are *not* affected by `p_init`; their noise is captured by `p_bell_{x,y,z}`. `p_internal` is retained as a specified parameter (defaulting to `0` in v3) so the v1 channel can still be turned on if desired.
 
 ## Allowed input operations
 
