@@ -1,0 +1,13 @@
+{
+    "p": 0.001,
+    "rounds": -1,
+    "noise_model": "no_noise",
+    "both_detector_types": false,
+    "n": 384.0,
+    "k": 16.0,
+    "expected_distance": 12,
+    "name": "C9_382_16",
+    "memory_type": "Z",
+    "config": "basic_cell",
+    "periodicity_vectors": "[array([-6,  6,  0,  0,  0,  0,  0]), array([-8,  0,  8,  0,  0,  0,  0]), array([-8,  3,  6, -1,  0,  0,  0]), array([-8,  5,  4,  0, -1,  0,  0]), array([-6,  1,  6,  0,  0, -1,  0]), array([-10,   4,   7,   0,   0,   0,  -1])]"
+}

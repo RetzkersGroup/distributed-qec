@@ -1,7 +1,7 @@
 {
     "p": 0.001,
     "rounds": -1,
-    "noise_model": "em3",
+    "noise_model": "no_noise",
     "both_detector_types": false,
     "n": 192.0,
     "k": 16.0,
