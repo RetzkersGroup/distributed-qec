@@ -53,9 +53,12 @@ def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
     """Return custom decoder dict if needed, None for built-in decoders."""
     if decoder_name in ("pymatching", "fusion_blossom"):
         return None
+    if decoder_name in ("tesseract_short", "tesseract_long"):
+        from tesseract_decoder_utils import get_tesseract_decoder
+        return get_tesseract_decoder(decoder_name.removeprefix("tesseract_"))
     raise ValueError(
         f"Unknown decoder: {decoder_name!r}. "
-        f"Supported: pymatching, fusion_blossom."
+        f"Supported: pymatching, fusion_blossom, tesseract_short, tesseract_long."
     )
 
 
