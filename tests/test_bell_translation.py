@@ -276,6 +276,91 @@ class TestNoiseInjection:
         assert _has_instruction(tr, "Z_ERROR")
 
 
+class TestNoiseWindow:
+    """`noiseless_start_end=True` gates Bell-prep noise to the window between
+    TICK[start_noise] and TICK[stop_noise]. With the flag off, tags are
+    ignored."""
+
+    NOISE = NoiseParams(
+        p_bell_x=0.01, p_bell_y=0.01, p_bell_z=0.01,
+        p_data_z=0.01, p_internal=0.01, p_m=0.01, p_1=0.01, p_init=0.01,
+    )
+    NOISE_NAMES = {
+        "PAULI_CHANNEL_1", "DEPOLARIZE1", "DEPOLARIZE2",
+        "X_ERROR", "Y_ERROR", "Z_ERROR",
+    }
+
+    @staticmethod
+    def _has_noise(circuit):
+        return any(
+            op.name in TestNoiseWindow.NOISE_NAMES for op in circuit.flattened()
+        )
+
+    def test_flag_off_ignores_tags(self):
+        # Tags present, but flag off -> entire circuit is noisy.
+        src = stim.Circuit("""
+            R 0 1
+            TICK[start_noise]
+            MPP Z0*Z1
+            TICK[stop_noise]
+            MPP Z0*Z1
+            DETECTOR rec[-1] rec[-2]
+        """)
+        tr = translate_circuit(src, self.NOISE)
+        assert self._has_noise(tr)
+
+    def test_window_only(self):
+        src = stim.Circuit("""
+            R 0 1
+            MPP Z0*Z1
+            DETECTOR rec[-1]
+            TICK[start_noise]
+            MPP Z0*Z1
+            DETECTOR rec[-1] rec[-2]
+            TICK[stop_noise]
+            MPP Z0*Z1
+            DETECTOR rec[-1] rec[-2]
+        """)
+        tr = translate_circuit(src, self.NOISE, noiseless_start_end=True)
+        head = stim.Circuit()
+        body = stim.Circuit()
+        tail = stim.Circuit()
+        bucket = head
+        for op in tr:
+            if op.name == "TICK" and op.tag == "start_noise":
+                bucket = body
+                continue
+            if op.name == "TICK" and op.tag == "stop_noise":
+                bucket = tail
+                continue
+            bucket.append(op)
+        assert not self._has_noise(head), "noise leaked before start_noise"
+        assert self._has_noise(body), "missing noise inside the window"
+        assert not self._has_noise(tail), "noise leaked after stop_noise"
+
+    def test_flag_on_requires_tags(self):
+        src = stim.Circuit("R 0 1\nMPP Z0*Z1\nDETECTOR rec[-1]")
+        with pytest.raises(ValueError):
+            translate_circuit(src, self.NOISE, noiseless_start_end=True)
+
+    def test_flag_on_requires_both_tags(self):
+        src = stim.Circuit("R 0 1\nTICK[start_noise]\nMPP Z0*Z1\nDETECTOR rec[-1]")
+        with pytest.raises(ValueError):
+            translate_circuit(src, self.NOISE, noiseless_start_end=True)
+
+    def test_tags_round_trip(self):
+        src = stim.Circuit("""
+            R 0 1
+            TICK[start_noise]
+            MPP Z0*Z1
+            TICK[stop_noise]
+        """)
+        tr = translate_circuit(src, self.NOISE, noiseless_start_end=True)
+        tags = [op.tag for op in tr if op.name == "TICK"]
+        assert "start_noise" in tags
+        assert "stop_noise" in tags
+
+
 # ---------------------------------------------------------------------------
 # 6. p_init does NOT affect ancilla resets
 # ---------------------------------------------------------------------------

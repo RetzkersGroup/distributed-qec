@@ -18,6 +18,14 @@ via `--mzz-gadget v2`; only the MZZ gadget shape differs):
 
 These defaults can be overridden with --noise-profile or individual flags.
 
+Pass `--noiseless-start-end` if the input is annotated with
+TICK[start_noise] and TICK[stop_noise] tags (see e.g. the stairway-codes
+2BGA circuits, where the first/last rounds are noiseless). Bell-prep
+noise is then only injected for instructions in the window
+[start_noise, stop_noise); ops outside are translated without any noise
+channels. The flag is opt-in — hyperbolic / honeycomb circuits don't
+need it.
+
 Examples:
 
     # Sweep p = 0.0005, 0.001, 0.002 over all k=10 circuits:
@@ -110,10 +118,13 @@ def _process(
     p_bell_z: float,
     out_dir: pathlib.Path,
     mzz_gadget: str,
+    noiseless_start_end: bool,
 ) -> None:
     noise = _noise_from_p(p, p_bell_z, mzz_gadget)
     circuit = stim.Circuit.from_file(str(in_path))
-    translated = translate_circuit(circuit, noise)
+    translated = translate_circuit(
+        circuit, noise, noiseless_start_end=noiseless_start_end,
+    )
 
     model_name = "biased_bell_v2" if mzz_gadget == "v2" else "biased_bell_v3"
     out_stem = f"{in_path.stem}_{model_name}_p={p}_pbz={p_bell_z}"
@@ -129,6 +140,7 @@ def _process(
         "noise_model": model_name,
         "mzz_gadget": mzz_gadget,
         "noise_params": noise.to_dict(),
+        "noiseless_start_end": noiseless_start_end,
         "translation": "bell",
         "code_family": "semi_hyperbolic_floquet",
         "n": parsed["n"],
@@ -177,6 +189,13 @@ def main() -> None:
         "--mzz-gadget", default="v3", choices=["v2", "v3"], dest="mzz_gadget",
         help="MZZ gadget shape (default: v3 = biased_bell_v3).",
     )
+    parser.add_argument(
+        "--noiseless-start-end", action="store_true",
+        dest="noiseless_start_end",
+        help="If set, only inject Bell-prep noise inside the "
+             "TICK[start_noise]..TICK[stop_noise] window in the input "
+             "circuit (e.g. stairway 2BGA circuits with noiseless head/tail).",
+    )
 
     args = parser.parse_args()
     inputs = _resolve_inputs(args.input)
@@ -189,7 +208,10 @@ def main() -> None:
     for in_path in inputs:
         print(f"{in_path.name}:")
         for p in args.p_values:
-            _process(in_path, p, args.p_bell_z, out_dir, args.mzz_gadget)
+            _process(
+                in_path, p, args.p_bell_z, out_dir, args.mzz_gadget,
+                args.noiseless_start_end,
+            )
 
 
 if __name__ == "__main__":

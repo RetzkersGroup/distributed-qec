@@ -98,6 +98,7 @@ def _process(
     out_dir: pathlib.Path,
     skip_existing: bool,
     mzz_gadget: str,
+    noiseless_start_end: bool,
 ) -> str:
     if direction_kind == "bias":
         p_bell_z = direction_value * p
@@ -129,7 +130,9 @@ def _process(
 
     raw = stim.Circuit.from_file(str(in_path))
     noise = _noise_from_p(p, p_bell_z, mzz_gadget)
-    translated = translate_circuit(raw, noise)
+    translated = translate_circuit(
+        raw, noise, noiseless_start_end=noiseless_start_end,
+    )
     translated.to_file(str(out_circuit_path))
 
     src_meta = _load_metadata(in_path)
@@ -146,6 +149,7 @@ def _process(
         "noise_model": model_name,
         "mzz_gadget": mzz_gadget,
         "noise_params": noise.to_dict(),
+        "noiseless_start_end": noiseless_start_end,
         "translation": "bell",
         "input_circuit": str(in_path),
         "output_circuit": str(out_circuit_path),
@@ -207,6 +211,13 @@ def main() -> None:
         help="Explicit MZZ gadget override. Defaults to match --noise-model "
              "(biased_bell_v2 -> v2, biased_bell_v3 -> v3).",
     )
+    parser.add_argument(
+        "--noiseless-start-end", action="store_true",
+        dest="noiseless_start_end",
+        help="If set, only inject Bell-prep noise inside the "
+             "TICK[start_noise]..TICK[stop_noise] window in the input "
+             "circuit (e.g. stairway 2BGA circuits with noiseless head/tail).",
+    )
     args = parser.parse_args()
 
     if args.mzz_gadget is None:
@@ -252,7 +263,8 @@ def main() -> None:
     with ProcessPoolExecutor(max_workers=n_workers) as ex:
         futures = [
             ex.submit(_process, in_path, kind, val, p, out_dir,
-                      args.skip_existing, args.mzz_gadget)
+                      args.skip_existing, args.mzz_gadget,
+                      args.noiseless_start_end)
             for in_path, kind, val, p in jobs
         ]
         for done, fut in enumerate(as_completed(futures), 1):

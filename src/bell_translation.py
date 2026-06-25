@@ -96,6 +96,8 @@ class NoiseParams:
 def translate_circuit(
     circuit: stim.Circuit,
     noise_params: dict | NoiseParams | None = None,
+    *,
+    noiseless_start_end: bool = False,
 ) -> stim.Circuit:
     """Translate a circuit's pairwise measurements into Bell-mediated circuits.
 
@@ -104,6 +106,14 @@ def translate_circuit(
 
     DETECTOR and OBSERVABLE_INCLUDE record refs are rewritten so the
     translated circuit retains the same logical detectors and observables.
+
+    If `noiseless_start_end=True`, the input must contain matching
+    `TICK[start_noise]` and `TICK[stop_noise]` tags. Bell-prep noise is
+    only injected for instructions in the window `[start_noise,
+    stop_noise)`; ops outside the window are translated structurally with
+    no noise channels (useful for noiseless head/tail rounds, e.g. the
+    stairway-codes 2BGA circuits). When the flag is off the tags are
+    ignored and the whole circuit is noisy.
     """
     if isinstance(noise_params, dict):
         noise = NoiseParams.from_dict(noise_params)
@@ -111,11 +121,14 @@ def translate_circuit(
         noise = noise_params
 
     cleaned = circuit.without_noise().flattened()
-    return _translate_flat(cleaned, noise)
+    return _translate_flat(cleaned, noise, noiseless_start_end=noiseless_start_end)
 
 
 def _translate_flat(
-    circuit: stim.Circuit, noise: NoiseParams | None
+    circuit: stim.Circuit,
+    noise: NoiseParams | None,
+    *,
+    noiseless_start_end: bool = False,
 ) -> stim.Circuit:
     out = stim.Circuit()
     num_data = circuit.num_qubits
@@ -127,6 +140,23 @@ def _translate_flat(
     # Accumulate all instructions as strings, parse once at the end.
     buf: list[str] = []
 
+    # Optional noiseless head/tail: when `noiseless_start_end` is True we
+    # require matching TICK[start_noise] / TICK[stop_noise] tags and only
+    # apply noise to ops in the window. When False (default) the tags are
+    # ignored and the whole circuit is noisy.
+    if noiseless_start_end:
+        has_start = any(op.name == "TICK" and op.tag == "start_noise" for op in circuit)
+        has_stop = any(op.name == "TICK" and op.tag == "stop_noise" for op in circuit)
+        if not has_start or not has_stop:
+            raise ValueError(
+                "noiseless_start_end=True requires both TICK[start_noise] "
+                f"and TICK[stop_noise] in the input; got start={has_start}, "
+                f"stop={has_stop}."
+            )
+        active_noise: NoiseParams | None = None
+    else:
+        active_noise = noise
+
     for op in circuit:
         name = op.name
         if name in PAIRWISE_MEASUREMENT_NAMES:
@@ -136,18 +166,18 @@ def _translate_flat(
                     a, b = qubits
                     anc1 = num_data + a
                     anc2 = num_data + b
-                    _bell_block_to_buf(buf, basis, a, b, anc1, anc2, noise)
+                    _bell_block_to_buf(buf, basis, a, b, anc1, anc2, active_noise)
                     measurement_map.append(
                         [new_meas_count, new_meas_count + 1]
                     )
                     new_meas_count += 2
                 else:  # len(qubits) == 1: 1-body MPP product
-                    _single_pauli_meas_to_buf(buf, basis, qubits[0], noise)
+                    _single_pauli_meas_to_buf(buf, basis, qubits[0], active_noise)
                     measurement_map.append([new_meas_count])
                     new_meas_count += 1
         elif name in _SINGLE_QUBIT_MEAS_NAMES:
             qubits = [t.qubit_value for t in op.targets_copy()]
-            p_m = noise.p_m if noise is not None else 0.0
+            p_m = active_noise.p_m if active_noise is not None else 0.0
             q_str = " ".join(str(q) for q in qubits)
             if p_m > 0:
                 buf.append(f"{name}({p_m}) {q_str}")
@@ -160,7 +190,7 @@ def _translate_flat(
             qubits = [t.qubit_value for t in op.targets_copy()]
             q_str = " ".join(str(q) for q in qubits)
             buf.append(f"{name} {q_str}")
-            _reset_noise_to_buf(buf, name, qubits, noise)
+            _reset_noise_to_buf(buf, name, qubits, active_noise)
         elif name == "DETECTOR" or name == "OBSERVABLE_INCLUDE":
             _rewrite_annotation_to_buf(
                 buf, name, op, measurement_map, new_meas_count
@@ -169,10 +199,15 @@ def _translate_flat(
             qubits = [t.qubit_value for t in op.targets_copy()]
             q_str = " ".join(str(q) for q in qubits)
             buf.append(f"{name} {q_str}")
-            if noise is not None and noise.p_1 > 0 and qubits:
-                buf.append(f"DEPOLARIZE1({noise.p_1}) {q_str}")
+            if active_noise is not None and active_noise.p_1 > 0 and qubits:
+                buf.append(f"DEPOLARIZE1({active_noise.p_1}) {q_str}")
         elif name in _PASS_THROUGH_NAMES:
             buf.append(str(op))
+            if noiseless_start_end and name == "TICK":
+                if op.tag == "start_noise":
+                    active_noise = noise
+                elif op.tag == "stop_noise":
+                    active_noise = None
         else:
             raise ValueError(
                 f"Bell translation has no defined noise model for instruction "
