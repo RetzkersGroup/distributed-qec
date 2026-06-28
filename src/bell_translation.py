@@ -385,15 +385,18 @@ def _v3_equivalent_mechanisms(p_e: float, p_bell_z: float) -> list:
     Mirrors the channels in equivalent_bell_bias.md:
 
         E(p)        X2          -> (p,        {M})
+        E(p)        X2          -> (p,        {M})   # applied twice
         E(p_bell_z) X2          -> (p_bell_z, {M})
         E(p/2)      X0 X2       -> (p/2,      {X0, M})
         E(p/2)      X0          -> (p/2,      {X0})
         E(p)        Z0 X2       -> (p,        {Z0, M})
         E(p)        Z1 X2       -> (p,        {Z1, M})
 
-    (The X0-only asymmetry is intentional, per the spec.)
+    (The E(p) X2 line appears twice, and the X0-only asymmetry is
+    intentional, per the spec.)
     """
     return [
+        (p_e, frozenset({"M"})),
         (p_e, frozenset({"M"})),
         (p_bell_z, frozenset({"M"})),
         (p_e / 2, frozenset({"X0", "M"})),
@@ -403,25 +406,16 @@ def _v3_equivalent_mechanisms(p_e: float, p_bell_z: float) -> list:
     ]
 
 
-def get_equivalent_noise_operations(p_e: float) -> list:
-    """Majority-vote equivalent noise block (biased_bell_v3_equivalent_majority).
-
-    Returns the same (probability, labels) mechanism representation as
-    `_v3_equivalent_mechanisms`. To be derived from
-    notebooks/majority_vote.ipynb; not yet implemented.
-    """
-    raise NotImplementedError(
-        "biased_bell_v3_equivalent_majority is pending: the noise mechanisms "
-        "must be exported from notebooks/majority_vote.ipynb and returned here."
-    )
-
-
 def _equiv_mechanisms_for(noise: NoiseParams) -> list:
     """Pick the mechanism list for the active equivalent scheme."""
     if noise.scheme == "equivalent_v3":
         return _v3_equivalent_mechanisms(noise.p_e, noise.p_bell_z)
     if noise.scheme == "equivalent_v3_majority":
-        return get_equivalent_noise_operations(noise.p_e)
+        # Imported lazily: the majority calculator builds a stim circuit and is
+        # only needed for this scheme.
+        from equivalent_noise_calculator import get_equivalent_noise_operations
+
+        return get_equivalent_noise_operations(noise.p_e, noise.p_bell_z)
     raise AssertionError(noise.scheme)
 
 

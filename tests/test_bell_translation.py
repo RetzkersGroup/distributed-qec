@@ -689,10 +689,11 @@ class TestEquivalentV3:
         noise = NoiseParams(scheme="equivalent_v3", p_e=0.001, p_bell_z=0.01)
         tr = translate_circuit(src, noise)
         e_ops = _instructions_with_name(tr, "E")
-        # Six mechanisms from _v3_equivalent_mechanisms, all nonzero here.
-        assert len(e_ops) == 6
+        # Seven mechanisms from _v3_equivalent_mechanisms, all nonzero here
+        # (the E(p_e) X-anc "M" line appears twice).
+        assert len(e_ops) == 7
         probs = sorted(op.gate_args_copy()[0] for op in e_ops)
-        assert probs == sorted([0.001, 0.01, 0.0005, 0.0005, 0.001, 0.001])
+        assert probs == sorted([0.001, 0.001, 0.01, 0.0005, 0.0005, 0.001, 0.001])
 
     def test_zero_prob_mechanisms_dropped(self):
         # With p_bell_z=0, the E(p_bell_z) X-anc line must not be emitted.
@@ -700,7 +701,7 @@ class TestEquivalentV3:
         noise = NoiseParams(scheme="equivalent_v3", p_e=0.001, p_bell_z=0.0)
         tr = translate_circuit(src, noise)
         e_ops = _instructions_with_name(tr, "E")
-        assert len(e_ops) == 5  # six minus the zero-prob p_bell_z line
+        assert len(e_ops) == 6  # seven minus the zero-prob p_bell_z line
 
     def test_p_1_on_mzz_conjugation(self):
         src = stim.Circuit("R 0 1\nMZZ 0 1\nDETECTOR rec[-1]")
@@ -771,12 +772,30 @@ class TestEquivalentV3:
         with pytest.raises(ValueError, match="scheme"):
             translate_circuit(src, NoiseParams(scheme="nonsense"))
 
-    def test_majority_scheme_not_implemented(self):
+    def test_majority_scheme_noiseless_deterministic(self):
+        # With p_e = p_bell_z = 0 the majority block is empty, so the gadget is
+        # just the single-ancilla XCX structure and detectors stay deterministic.
+        src = stim.Circuit(
+            "RX 0 1\nMXX 0 1\nMXX 0 1\nDETECTOR rec[-1] rec[-2]"
+        )
+        tr = translate_circuit(
+            src, NoiseParams(scheme="equivalent_v3_majority")
+        )
+        assert tr.num_qubits == 3
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_majority_scheme_emits_noise(self):
         src = stim.Circuit("RX 0 1\nMXX 0 1\nDETECTOR rec[-1]")
-        with pytest.raises(NotImplementedError):
-            translate_circuit(
-                src, NoiseParams(scheme="equivalent_v3_majority", p_e=0.001)
-            )
+        noise = NoiseParams(
+            scheme="equivalent_v3_majority", p_e=0.001, p_bell_z=0.01
+        )
+        tr = translate_circuit(src, noise)
+        # The majority calculator yields many correlated E(...) mechanisms.
+        e_ops = _instructions_with_name(tr, "E")
+        assert len(e_ops) > 6
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors > 0
 
 
 class TestEquivalentRenderer:
@@ -800,6 +819,7 @@ class TestEquivalentRenderer:
     def test_v3_mechanisms_shape(self):
         mechs = _v3_equivalent_mechanisms(p_e=0.01, p_bell_z=0.02)
         assert mechs == [
+            (0.01, frozenset({"M"})),
             (0.01, frozenset({"M"})),
             (0.02, frozenset({"M"})),
             (0.005, frozenset({"X0", "M"})),

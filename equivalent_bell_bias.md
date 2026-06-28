@@ -69,6 +69,7 @@ and, replace `<NOISE-OPERATIONS>` with:
 
 ```
 E(p) X2
+E(p) X2
 E(p_bell_z) X2
 E(p/2) X0 X2
 E(p/2) X0

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Generate biased_bell_v3_equivalent circuits for a (p, p_bell_z) threshold scan.
+"""Generate equivalent-scheme circuits for a (p, p_bell_z) threshold scan.
 
-Thin wrapper around `tools/make_threshold_circuits_bell.py` that pins the
+Thin wrapper around `tools/make_threshold_circuits_bell.py` that defaults the
 translation scheme to `equivalent_v3` (the single-ancilla XCX gadget with the
-correlated `E(...)` noise block; see equivalent_bell_bias.md) and defaults the
-input to the Gidney honeycomb circuits.
+correlated `E(...)` noise block; see equivalent_bell_bias.md) and the input to
+the Gidney honeycomb circuits. Pass `--scheme equivalent_v3_majority` for the
+majority-vote variant; the default output directory follows the scheme.
 
 All other flags (`--p-values`, `--biases`, `--p-bell-z-values`, `--workers`,
 `--skip-existing`, `--noiseless-start-end`, ...) are forwarded unchanged to the
@@ -15,6 +16,9 @@ Examples:
 
     # Default input (Gidney honeycomb), default directions and p-values:
     python tools/equivalent/make_threshold_circuits.py
+
+    # Majority-vote variant:
+    python tools/equivalent/make_threshold_circuits.py --scheme equivalent_v3_majority
 
     # Custom sweep:
     python tools/equivalent/make_threshold_circuits.py \
@@ -35,33 +39,38 @@ if str(_TOOLS) not in sys.path:
 import make_threshold_circuits_bell as base  # noqa: E402
 
 DEFAULT_INPUT = "in/circuits/honeycomb_gidney/*.stim"
-DEFAULT_OUTPUT_DIR = "out/circuits/thresholds_equivalent"
-SCHEME = "equivalent_v3"
+DEFAULT_SCHEME = "equivalent_v3"
+# Output directory per scheme (used only when --output-dir is not supplied).
+OUTPUT_DIR_BY_SCHEME = {
+    "equivalent_v3": "out/circuits/thresholds_equivalent",
+    "equivalent_v3_majority": "out/circuits/thresholds_equivalent_majority",
+}
+
+
+def _flag_value(argv: list[str], flag: str) -> str | None:
+    """Return the value of `--flag X` or `--flag=X` in argv, else None."""
+    for i, a in enumerate(argv):
+        if a == flag and i + 1 < len(argv):
+            return argv[i + 1]
+        if a.startswith(flag + "="):
+            return a.split("=", 1)[1]
+    return None
 
 
 def main() -> None:
     argv = sys.argv[1:]
 
+    # Resolve scheme (default equivalent_v3); the underlying tool validates it.
+    scheme = _flag_value(argv, "--scheme") or DEFAULT_SCHEME
+
     # Equivalent-specific defaults, injected only when the user didn't pass them.
     if not any(a == "--input" or a.startswith("--input=") for a in argv):
         argv += ["--input", DEFAULT_INPUT]
     if not any(a == "--output-dir" or a.startswith("--output-dir=") for a in argv):
-        argv += ["--output-dir", DEFAULT_OUTPUT_DIR]
-    # The scheme is fixed for this wrapper; drop any user-supplied --scheme
-    # (both "--scheme X" and "--scheme=X" forms) and append our own.
-    cleaned: list[str] = []
-    skip_next = False
-    for a in argv:
-        if skip_next:
-            skip_next = False
-            continue
-        if a == "--scheme":
-            skip_next = True  # also drop the following value token
-            continue
-        if a.startswith("--scheme="):
-            continue
-        cleaned.append(a)
-    argv = cleaned + ["--scheme", SCHEME]
+        out_dir = OUTPUT_DIR_BY_SCHEME.get(scheme, "out/circuits/thresholds_equivalent")
+        argv += ["--output-dir", out_dir]
+    if _flag_value(argv, "--scheme") is None:
+        argv += ["--scheme", scheme]
 
     sys.argv = [sys.argv[0], *argv]
     base.main()
