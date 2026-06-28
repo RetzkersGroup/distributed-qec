@@ -96,9 +96,26 @@ def _parse_filename(filename: str) -> dict:
     return params
 
 
-def _noise_from_p(p: float, p_bell_z: float, mzz_gadget: str) -> NoiseParams:
-    """biased_bell_v3 (default) / v2: X/Y Bell channels = p/2; p_bell_z independent;
-    p_data_z = p; p_internal = 0; p_1 = p/10."""
+def _noise_from_p(
+    p: float, p_bell_z: float, mzz_gadget: str, scheme: str = "bell",
+) -> NoiseParams:
+    """Build NoiseParams for the chosen scheme.
+
+    Bell schemes (biased_bell_v3 default / v2): X/Y Bell channels = p/2;
+    p_bell_z independent; p_data_z = p; p_internal = 0; p_1 = p/10.
+
+    Equivalent schemes (biased_bell_v3_equivalent): single-ancilla XCX gadget
+    with the correlated E(...) block; p_e = p drives that block, p_bell_z
+    independent. Per-data-qubit p_1/p_init carry over.
+    """
+    if scheme != "bell":
+        return NoiseParams(
+            scheme=scheme,
+            p_e=p,
+            p_bell_z=p_bell_z,
+            p_1=p / 10,
+            p_init=p,
+        )
     return NoiseParams(
         p_bell_x=p / 2,
         p_bell_y=p / 2,
@@ -112,21 +129,30 @@ def _noise_from_p(p: float, p_bell_z: float, mzz_gadget: str) -> NoiseParams:
     )
 
 
+def _model_name(mzz_gadget: str, scheme: str) -> str:
+    if scheme == "equivalent_v3":
+        return "biased_bell_v3_equivalent"
+    if scheme == "equivalent_v3_majority":
+        return "biased_bell_v3_equivalent_majority"
+    return "biased_bell_v2" if mzz_gadget == "v2" else "biased_bell_v3"
+
+
 def _process(
     in_path: pathlib.Path,
     p: float,
     p_bell_z: float,
     out_dir: pathlib.Path,
     mzz_gadget: str,
+    scheme: str,
     noiseless_start_end: bool,
 ) -> None:
-    noise = _noise_from_p(p, p_bell_z, mzz_gadget)
+    noise = _noise_from_p(p, p_bell_z, mzz_gadget, scheme)
     circuit = stim.Circuit.from_file(str(in_path))
     translated = translate_circuit(
         circuit, noise, noiseless_start_end=noiseless_start_end,
     )
 
-    model_name = "biased_bell_v2" if mzz_gadget == "v2" else "biased_bell_v3"
+    model_name = _model_name(mzz_gadget, scheme)
     out_stem = f"{in_path.stem}_{model_name}_p={p}_pbz={p_bell_z}"
     out_circuit_path = out_dir / f"{out_stem}.stim"
     out_meta_path = out_dir / f"{out_stem}.json"
@@ -139,6 +165,7 @@ def _process(
         "p_bell_z": p_bell_z,
         "noise_model": model_name,
         "mzz_gadget": mzz_gadget,
+        "scheme": scheme,
         "noise_params": noise.to_dict(),
         "noiseless_start_end": noiseless_start_end,
         "translation": "bell",
@@ -187,7 +214,16 @@ def main() -> None:
     )
     parser.add_argument(
         "--mzz-gadget", default="v3", choices=["v2", "v3"], dest="mzz_gadget",
-        help="MZZ gadget shape (default: v3 = biased_bell_v3).",
+        help="MZZ gadget shape (default: v3 = biased_bell_v3). Ignored for "
+             "the equivalent schemes.",
+    )
+    parser.add_argument(
+        "--scheme", default="bell",
+        choices=["bell", "equivalent_v3", "equivalent_v3_majority"],
+        dest="scheme",
+        help="Translation scheme (default: bell = two-ancilla Bell pair). "
+             "'equivalent_v3' uses the single-ancilla XCX gadget with the "
+             "correlated E(...) noise block (biased_bell_v3_equivalent).",
     )
     parser.add_argument(
         "--noiseless-start-end", action="store_true",
@@ -210,7 +246,7 @@ def main() -> None:
         for p in args.p_values:
             _process(
                 in_path, p, args.p_bell_z, out_dir, args.mzz_gadget,
-                args.noiseless_start_end,
+                args.scheme, args.noiseless_start_end,
             )
 
 

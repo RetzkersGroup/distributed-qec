@@ -28,6 +28,13 @@ import stim
 
 PAIRWISE_MEASUREMENT_NAMES = {"MPP", "MXX", "MZZ", "MYY"}
 
+# Translation schemes. The "bell" scheme uses two ancilla qubits and a shared
+# Bell pair per pairwise measurement (biased_bell_v2/v3). The "equivalent_*"
+# schemes use a single ancilla and replace the Bell-prep physics with a
+# correlated `E(...)` noise block that is noise-equivalent to it.
+_BELL_SCHEME = "bell"
+_EQUIVALENT_SCHEMES = {"equivalent_v3", "equivalent_v3_majority"}
+
 # Single-qubit measurements supported in the input. Z-basis variants get
 # X_ERROR semantics (handled via the (p) argument); X-basis variants get
 # Z_ERROR semantics. We do not support Y-basis here.
@@ -72,6 +79,20 @@ class NoiseParams:
     # "v3" -> H-conjugated data + ancilla->data CX + X-basis readout
     # (default; matches biased_bell_v3 in context.md).
     mzz_gadget: str = "v3"
+    # Translation scheme:
+    #   "bell" (default) -> two-ancilla Bell-pair gadgets (biased_bell_v2/v3).
+    #   "equivalent_v3" -> single-ancilla XCX gadget with the correlated
+    #       `E(...)` noise block that is noise-equivalent to biased_bell_v3
+    #       (see equivalent_bell_bias.md).
+    #   "equivalent_v3_majority" -> same single-ancilla gadget, but the noise
+    #       block comes from `get_equivalent_noise_operations(p_e)` (the
+    #       majority-vote model; pending notebooks/majority_vote.ipynb).
+    scheme: str = "bell"
+    # Physical error rate used by the equivalent-scheme `E(...)` block. Only
+    # consumed when `scheme` is one of the "equivalent_*" values; the
+    # Bell-pair schemes ignore it. (The model's two physical knobs are
+    # `p_e` and `p_bell_z`.)
+    p_e: float = 0.0
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "NoiseParams | None":
@@ -90,6 +111,8 @@ class NoiseParams:
             "p_1": self.p_1,
             "p_init": self.p_init,
             "mzz_gadget": self.mzz_gadget,
+            "scheme": self.scheme,
+            "p_e": self.p_e,
         }
 
 
@@ -120,6 +143,12 @@ def translate_circuit(
     else:
         noise = noise_params
 
+    if noise is not None and noise.scheme not in (_BELL_SCHEME, *_EQUIVALENT_SCHEMES):
+        raise ValueError(
+            f"NoiseParams.scheme must be {_BELL_SCHEME!r} or one of "
+            f"{sorted(_EQUIVALENT_SCHEMES)}; got {noise.scheme!r}."
+        )
+
     cleaned = circuit.without_noise().flattened()
     return _translate_flat(cleaned, noise, noiseless_start_end=noiseless_start_end)
 
@@ -132,8 +161,12 @@ def _translate_flat(
 ) -> stim.Circuit:
     out = stim.Circuit()
     num_data = circuit.num_qubits
-    # Each data qubit q has a dedicated ancilla at index (num_data + q).
-    # A measurement on data qubits (q1, q2) uses ancillas (num_data+q1, num_data+q2).
+    # Bell scheme: each data qubit q has a dedicated ancilla at index
+    # (num_data + q); a measurement on (q1, q2) uses (num_data+q1, num_data+q2).
+    # Equivalent schemes: a single scratch ancilla at index num_data, reset and
+    # reused for every pairwise measurement (one measurement is live at a time).
+    scheme = noise.scheme if noise is not None else _BELL_SCHEME
+    equiv_anc = num_data
     measurement_map: list[list[int]] = []
     new_meas_count = 0
 
@@ -164,13 +197,23 @@ def _translate_flat(
             for basis, qubits in products:
                 if len(qubits) == 2:
                     a, b = qubits
-                    anc1 = num_data + a
-                    anc2 = num_data + b
-                    _bell_block_to_buf(buf, basis, a, b, anc1, anc2, active_noise)
-                    measurement_map.append(
-                        [new_meas_count, new_meas_count + 1]
-                    )
-                    new_meas_count += 2
+                    if scheme in _EQUIVALENT_SCHEMES:
+                        # Single ancilla, one measurement record per op.
+                        _equiv_block_to_buf(
+                            buf, basis, a, b, equiv_anc, active_noise
+                        )
+                        measurement_map.append([new_meas_count])
+                        new_meas_count += 1
+                    else:
+                        anc1 = num_data + a
+                        anc2 = num_data + b
+                        _bell_block_to_buf(
+                            buf, basis, a, b, anc1, anc2, active_noise
+                        )
+                        measurement_map.append(
+                            [new_meas_count, new_meas_count + 1]
+                        )
+                        new_meas_count += 2
                 else:  # len(qubits) == 1: 1-body MPP product
                     _single_pauli_meas_to_buf(buf, basis, qubits[0], active_noise)
                     measurement_map.append([new_meas_count])
@@ -303,6 +346,145 @@ def _bell_block_to_buf(
         _yy_to_buf(buf, a, b, anc1, anc2, noise)
     else:
         raise AssertionError(basis)
+
+
+# ---------------------------------------------------------------------------
+# Equivalent (single-ancilla) scheme
+# ---------------------------------------------------------------------------
+#
+# Instead of preparing a Bell pair on two ancillas and physically modelling its
+# prep noise, the "equivalent" schemes use a single ancilla and an XCX-based
+# parity gadget, then inject a correlated `E(...)` noise block that reproduces
+# the Bell model's detector error model. See equivalent_bell_bias.md.
+#
+# The noise block is represented abstractly as a list of (probability, labels)
+# mechanisms, where each label names a Pauli flip in the gadget's local frame:
+#   "M"  -> X on the ancilla (flips the measurement outcome)
+#   "X0" / "Z0" -> X / Z on the first data qubit  (a)
+#   "X1" / "Z1" -> X / Z on the second data qubit (b)
+# This is the same representation produced by notebooks/majority_vote.ipynb,
+# so the majority-vote model can drop straight in via
+# `get_equivalent_noise_operations`.
+
+# label -> (pauli, which-qubit) where which-qubit is "anc", "a", or "b".
+_EQUIV_LABEL_TARGET = {
+    "M": ("X", "anc"),
+    "X0": ("X", "a"),
+    "Z0": ("Z", "a"),
+    "X1": ("X", "b"),
+    "Z1": ("Z", "b"),
+}
+
+# A mechanism is (probability, frozenset[label]).
+Mechanism = "tuple[float, frozenset]"
+
+
+def _v3_equivalent_mechanisms(p_e: float, p_bell_z: float) -> list:
+    """The static `<NOISE-OPERATIONS>` block for biased_bell_v3_equivalent.
+
+    Mirrors the channels in equivalent_bell_bias.md:
+
+        E(p)        X2          -> (p,        {M})
+        E(p_bell_z) X2          -> (p_bell_z, {M})
+        E(p/2)      X0 X2       -> (p/2,      {X0, M})
+        E(p/2)      X0          -> (p/2,      {X0})
+        E(p)        Z0 X2       -> (p,        {Z0, M})
+        E(p)        Z1 X2       -> (p,        {Z1, M})
+
+    (The X0-only asymmetry is intentional, per the spec.)
+    """
+    return [
+        (p_e, frozenset({"M"})),
+        (p_bell_z, frozenset({"M"})),
+        (p_e / 2, frozenset({"X0", "M"})),
+        (p_e / 2, frozenset({"X0"})),
+        (p_e, frozenset({"Z0", "M"})),
+        (p_e, frozenset({"Z1", "M"})),
+    ]
+
+
+def get_equivalent_noise_operations(p_e: float) -> list:
+    """Majority-vote equivalent noise block (biased_bell_v3_equivalent_majority).
+
+    Returns the same (probability, labels) mechanism representation as
+    `_v3_equivalent_mechanisms`. To be derived from
+    notebooks/majority_vote.ipynb; not yet implemented.
+    """
+    raise NotImplementedError(
+        "biased_bell_v3_equivalent_majority is pending: the noise mechanisms "
+        "must be exported from notebooks/majority_vote.ipynb and returned here."
+    )
+
+
+def _equiv_mechanisms_for(noise: NoiseParams) -> list:
+    """Pick the mechanism list for the active equivalent scheme."""
+    if noise.scheme == "equivalent_v3":
+        return _v3_equivalent_mechanisms(noise.p_e, noise.p_bell_z)
+    if noise.scheme == "equivalent_v3_majority":
+        return get_equivalent_noise_operations(noise.p_e)
+    raise AssertionError(noise.scheme)
+
+
+def _emit_equivalent_noise(
+    buf: list[str], mechanisms: list, anc: int, a: int, b: int,
+) -> None:
+    """Render abstract (probability, labels) mechanisms into `E(...)` lines."""
+    qubit_of = {"anc": anc, "a": a, "b": b}
+    for prob, labels in mechanisms:
+        if prob == 0 or not labels:
+            continue
+        terms = []
+        for label in sorted(labels):
+            pauli, which = _EQUIV_LABEL_TARGET[label]
+            terms.append(f"{pauli}{qubit_of[which]}")
+        buf.append(f"E({prob}) {' '.join(terms)}")
+
+
+def _equiv_block_to_buf(
+    buf: list[str],
+    basis: str, a: int, b: int, anc: int,
+    noise: NoiseParams | None,
+) -> None:
+    """Single-ancilla XCX gadget for the equivalent schemes.
+
+    MXX:  R anc; XCX a anc; XCX b anc; <E-block>; M anc
+    MZZ:  H-conjugate the data qubits around the same XCX pattern.
+    MYY:  S-conjugate the data qubits around the same XCX pattern.
+
+    The ancilla measurement is bare: its flip probability is folded into the
+    `E(...)` block (the `{M}` mechanisms), matching equivalent_bell_bias.md.
+    Per-data-qubit `p_1` is applied to the conjugating single-qubit gates.
+    """
+    p_1 = noise.p_1 if noise is not None else 0.0
+
+    buf.append(f"R {anc}")
+    if basis == "Z":
+        buf.append(f"H {a} {b}")
+        if p_1 > 0:
+            buf.append(f"DEPOLARIZE1({p_1}) {a} {b}")
+    elif basis == "Y":
+        buf.append(f"S {a} {b}")
+        if p_1 > 0:
+            buf.append(f"DEPOLARIZE1({p_1}) {a} {b}")
+    elif basis != "X":
+        raise AssertionError(basis)
+
+    buf.append(f"XCX {a} {anc}")
+    buf.append(f"XCX {b} {anc}")
+
+    if noise is not None:
+        _emit_equivalent_noise(buf, _equiv_mechanisms_for(noise), anc, a, b)
+
+    if basis == "Z":
+        buf.append(f"H {a} {b}")
+        if p_1 > 0:
+            buf.append(f"DEPOLARIZE1({p_1}) {a} {b}")
+    elif basis == "Y":
+        buf.append(f"S_DAG {a} {b}")
+        if p_1 > 0:
+            buf.append(f"DEPOLARIZE1({p_1}) {a} {b}")
+
+    buf.append(f"M {anc}")
 
 
 def _xx_to_buf(

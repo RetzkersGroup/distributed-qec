@@ -1,0 +1,14 @@
+\section{Equivalent noise model of the majority-vote gadget}
+\label{sec:majority-vote-equivalent-noise-model}
+
+To suppress measurement errors in the pairwise measurement circuit we repeat the same pairwise stabilizer measurement $r$ times and combine the outcomes into a single bit.
+Two natural strategies for that combination are: (i) a \emph{local} combiner, e.g.\ majority vote, that collapses the $r$ raw outcomes into one effective bit before handing the result to the decoder; and (ii) a \emph{global} decoder that consumes every individual outcome together with the rest of the syndrome graph.
+This is the familiar inner/outer distinction from concatenated codes: strategy (i) hides the inner repetition behind an effective channel, while (ii) lets the outer decoder exploit the inner structure directly.
+We focus on (i) and leave (ii) to future work.
+
+In this section, we explain how to model the majority-vote gadget as a single noisy pairwise measurement.
+This reduction is not trivial: errors that occur in one repetition can propagate, through the shared data qubits and CX gates, into later repetitions, and the syndrome bits are then nonlinearly combined by the majority vote, so a naive product of single-shot channels misses these correlations.
+
+Our approach is to start from the detector error model (DEM) of the repeated circuit, enumerate its error mechanisms up to depth two (treating pairs as independent products $p_1 p_2$, without $(1-p_i)$ corrections), fold the three syndrome detectors through majority vote, and read off an effective channel acting on (data, ancilla).
+The result is a list of weighted Pauli operations that, plugged into the outer simulator in place of a single pairwise measurement, reproduces the gadget's behavior to leading order in the physical error rate.
+The derivation and the resulting channel list for the $r=3$ Bell-mediated gadget are given below; the outer decoder is unchanged --- the gadget appears to it as a single noisy pairwise measurement.

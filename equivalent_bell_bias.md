@@ -1,7 +1,7 @@
 This file defines two new noise models
-`biased_bell_v2_equivalent`
-`biased_bell_v2_equivalent_majority`
-They are is similar to `biased_bell_v2` but instead of bell based measurements, we are going to do:
+`biased_bell_v3_equivalent`
+`biased_bell_v3_equivalent_majority`
+They are is similar to `biased_bell_v3` but instead of bell based measurements, we are going to do:
 
 ```
 MXX 0 1
@@ -91,3 +91,6 @@ The Bell translation has a strict allowlist — any instruction in the input cir
 
 In particular, **two-qubit gates between data qubits (CX, CZ, etc.) are not allowed** — under the distributed model, all data-qubit interactions must go through the Bell-mediated measurements.
 
+## `biased_bell_v3_equivalent_majority` noise
+
+This is basically the same but `<NOISE-OPERATIONS>` should be changed to whatever will come out of `notebooks/majority_vote.ipynb` (Not yet ready).

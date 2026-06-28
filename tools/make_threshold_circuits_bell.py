@@ -70,7 +70,17 @@ def _load_metadata(stim_path: pathlib.Path) -> dict:
     return {}
 
 
-def _noise_from_p(p: float, p_bell_z: float, mzz_gadget: str) -> NoiseParams:
+def _noise_from_p(
+    p: float, p_bell_z: float, mzz_gadget: str, scheme: str = "bell",
+) -> NoiseParams:
+    if scheme != "bell":
+        return NoiseParams(
+            scheme=scheme,
+            p_e=p,
+            p_bell_z=p_bell_z,
+            p_1=p / 10,
+            p_init=p,
+        )
     return NoiseParams(
         p_bell_x=p / 2,
         p_bell_y=p / 2,
@@ -82,6 +92,14 @@ def _noise_from_p(p: float, p_bell_z: float, mzz_gadget: str) -> NoiseParams:
         p_init=p,
         mzz_gadget=mzz_gadget,
     )
+
+
+def _model_name(mzz_gadget: str, scheme: str) -> str:
+    if scheme == "equivalent_v3":
+        return "biased_bell_v3_equivalent"
+    if scheme == "equivalent_v3_majority":
+        return "biased_bell_v3_equivalent_majority"
+    return "biased_bell_v2" if mzz_gadget == "v2" else "biased_bell_v3"
 
 
 def _format_bias(b: float) -> str:
@@ -98,6 +116,7 @@ def _process(
     out_dir: pathlib.Path,
     skip_existing: bool,
     mzz_gadget: str,
+    scheme: str,
     noiseless_start_end: bool,
 ) -> str:
     if direction_kind == "bias":
@@ -109,7 +128,7 @@ def _process(
     else:
         raise ValueError(direction_kind)
 
-    model_name = "biased_bell_v2" if mzz_gadget == "v2" else "biased_bell_v3"
+    model_name = _model_name(mzz_gadget, scheme)
     out_stem = (
         f"{in_path.stem}__{model_name},{dir_token},p={p:.5g}"
     )
@@ -129,7 +148,7 @@ def _process(
         return f"  {dir_token:>20s}  p={p:.4g} -> {out_circuit_path.name} (skipped)"
 
     raw = stim.Circuit.from_file(str(in_path))
-    noise = _noise_from_p(p, p_bell_z, mzz_gadget)
+    noise = _noise_from_p(p, p_bell_z, mzz_gadget, scheme)
     translated = translate_circuit(
         raw, noise, noiseless_start_end=noiseless_start_end,
     )
@@ -148,6 +167,7 @@ def _process(
         ),
         "noise_model": model_name,
         "mzz_gadget": mzz_gadget,
+        "scheme": scheme,
         "noise_params": noise.to_dict(),
         "noiseless_start_end": noiseless_start_end,
         "translation": "bell",
@@ -209,7 +229,16 @@ def main() -> None:
     parser.add_argument(
         "--mzz-gadget", default=None, choices=["v2", "v3"], dest="mzz_gadget",
         help="Explicit MZZ gadget override. Defaults to match --noise-model "
-             "(biased_bell_v2 -> v2, biased_bell_v3 -> v3).",
+             "(biased_bell_v2 -> v2, biased_bell_v3 -> v3). Ignored for the "
+             "equivalent schemes.",
+    )
+    parser.add_argument(
+        "--scheme", default="bell",
+        choices=["bell", "equivalent_v3", "equivalent_v3_majority"],
+        dest="scheme",
+        help="Translation scheme (default: bell = two-ancilla Bell pair). "
+             "'equivalent_v3' uses the single-ancilla XCX gadget with the "
+             "correlated E(...) noise block (biased_bell_v3_equivalent).",
     )
     parser.add_argument(
         "--noiseless-start-end", action="store_true",
@@ -263,7 +292,7 @@ def main() -> None:
     with ProcessPoolExecutor(max_workers=n_workers) as ex:
         futures = [
             ex.submit(_process, in_path, kind, val, p, out_dir,
-                      args.skip_existing, args.mzz_gadget,
+                      args.skip_existing, args.mzz_gadget, args.scheme,
                       args.noiseless_start_end)
             for in_path, kind, val, p in jobs
         ]

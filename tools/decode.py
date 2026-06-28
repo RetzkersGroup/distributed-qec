@@ -62,30 +62,24 @@ def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
     )
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--circuit-files", nargs="+", required=True,
-        help="Translated .stim circuit files to decode.",
-    )
-    parser.add_argument("--max-shots", type=int, default=10_000,
-                        help="Max shots per task (default: 10_000).")
-    parser.add_argument("--max-errors", type=int, default=100,
-                        help="Max errors per task (default: 100).")
-    parser.add_argument("--decoder", type=str, default="pymatching",
-                        help="Decoder name (default: pymatching).")
-    parser.add_argument("--output-preamble", type=str, default="output",
-                        help="Prefix for the output CSV filename.")
-    parser.add_argument("--cores", type=int, default=cpu_count(),
-                        help="Number of worker processes.")
-    parser.add_argument("--print-progress", action="store_true",
-                        help="Show sinter progress during collection.")
-    parser.add_argument("--comment", type=str, default="",
-                        help="Extra comment stored in metadata.")
-    args = parser.parse_args()
+def run_decode(
+    circuit_files: list[str],
+    *,
+    max_shots: int = 10_000,
+    max_errors: int = 100,
+    decoder: str = "pymatching",
+    output_preamble: str = "output",
+    cores: int | None = None,
+    print_progress: bool = False,
+    comment: str = "",
+) -> pathlib.Path:
+    """Collect decoding statistics for `circuit_files` and append to a CSV.
+
+    Shared by the generic CLI and the per-model wrappers (e.g.
+    tools/equivalent/decode.py). Returns the output CSV path.
+    """
+    if cores is None:
+        cores = cpu_count()
 
     log_dir = _ROOT / "out" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -96,15 +90,15 @@ def main() -> None:
         handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
     )
 
-    circuit_files = [f for f in args.circuit_files if f.endswith(".stim")]
+    circuit_files = [f for f in circuit_files if f.endswith(".stim")]
     if not circuit_files:
         logging.error("No .stim files found in the provided arguments.")
         sys.exit(1)
 
     logging.info(
         f"Starting decode: {len(circuit_files)} circuit(s), "
-        f"decoder={args.decoder}, max_shots={args.max_shots}, "
-        f"max_errors={args.max_errors}, cores={args.cores}"
+        f"decoder={decoder}, max_shots={max_shots}, "
+        f"max_errors={max_errors}, cores={cores}"
     )
     start_time = time.time()
 
@@ -113,28 +107,28 @@ def main() -> None:
         circuit = stim.Circuit.from_file(circuit_file)
         metadata = get_json_metadata(circuit_file)
         metadata["circuit_file"] = circuit_file
-        if args.comment:
-            metadata["comment"] = args.comment
+        if comment:
+            metadata["comment"] = comment
         tasks_list.append(sinter.Task(
             circuit=circuit,
             json_metadata=metadata,
         ))
 
-    custom_decoders = get_custom_decoders(args.decoder)
+    custom_decoders = get_custom_decoders(decoder)
     samples = sinter.collect(
-        num_workers=args.cores,
-        max_shots=args.max_shots,
-        max_errors=args.max_errors,
+        num_workers=cores,
+        max_shots=max_shots,
+        max_errors=max_errors,
         tasks=tasks_list,
-        decoders=[args.decoder],
+        decoders=[decoder],
         custom_decoders=custom_decoders,
-        print_progress=args.print_progress,
+        print_progress=print_progress,
     )
 
     out_dir = _ROOT / "out" / "collection"
     out_dir.mkdir(parents=True, exist_ok=True)
     today_str = date.today().strftime("%Y-%m-%d")
-    outfile = out_dir / f"{args.output_preamble},{today_str}.csv"
+    outfile = out_dir / f"{output_preamble},{today_str}.csv"
 
     df = pd.DataFrame([vars(stat) for stat in samples])
     file_exists = outfile.is_file()
@@ -144,6 +138,49 @@ def main() -> None:
     logging.info(f"Finished. Results saved to {outfile}")
     logging.info(f"Total time: {elapsed:.2f}s")
     print(f"\nResults: {outfile}")
+    return outfile
+
+
+def add_decode_args(parser: argparse.ArgumentParser) -> None:
+    """Attach the shared decode options to `parser` (everything but inputs)."""
+    parser.add_argument("--max-shots", type=int, default=10_000,
+                        help="Max shots per task (default: 10_000).")
+    parser.add_argument("--max-errors", type=int, default=100,
+                        help="Max errors per task (default: 100).")
+    parser.add_argument("--decoder", type=str, default="pymatching",
+                        help="Decoder name (default: pymatching).")
+    parser.add_argument("--cores", type=int, default=cpu_count(),
+                        help="Number of worker processes.")
+    parser.add_argument("--print-progress", action="store_true",
+                        help="Show sinter progress during collection.")
+    parser.add_argument("--comment", type=str, default="",
+                        help="Extra comment stored in metadata.")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--circuit-files", nargs="+", required=True,
+        help="Translated .stim circuit files to decode.",
+    )
+    parser.add_argument("--output-preamble", type=str, default="output",
+                        help="Prefix for the output CSV filename.")
+    add_decode_args(parser)
+    args = parser.parse_args()
+
+    run_decode(
+        args.circuit_files,
+        max_shots=args.max_shots,
+        max_errors=args.max_errors,
+        decoder=args.decoder,
+        output_preamble=args.output_preamble,
+        cores=args.cores,
+        print_progress=args.print_progress,
+        comment=args.comment,
+    )
 
 
 if __name__ == "__main__":

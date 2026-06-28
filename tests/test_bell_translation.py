@@ -5,7 +5,12 @@ import pathlib
 import pytest
 import stim
 
-from bell_translation import NoiseParams, translate_circuit
+from bell_translation import (
+    NoiseParams,
+    translate_circuit,
+    _v3_equivalent_mechanisms,
+    _emit_equivalent_noise,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -624,3 +629,181 @@ class TestRealCircuitRegression:
         assert tr.num_detectors == 6
         dem = tr.detector_error_model(decompose_errors=False)
         assert dem.num_errors == 0
+
+
+# ---------------------------------------------------------------------------
+# 11. Equivalent (single-ancilla) scheme: biased_bell_v3_equivalent
+# ---------------------------------------------------------------------------
+
+class TestEquivalentV3:
+    EQUIV = NoiseParams(scheme="equivalent_v3")
+
+    @pytest.mark.parametrize("meas,prep", [
+        ("MXX", "RX 0 1"),
+        ("MZZ", "R 0 1"),
+        ("MYY", "R 0 1\nH 0 1\nS 0 1"),
+    ])
+    def test_noiseless_deterministic(self, meas, prep):
+        src = stim.Circuit(
+            f"{prep}\n{meas} 0 1\n{meas} 0 1\nDETECTOR rec[-1] rec[-2]"
+        )
+        tr = translate_circuit(src, self.EQUIV)
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_single_ancilla_one_record_per_op(self):
+        # One scratch ancilla (index num_data) reused; one rec per pairwise op.
+        src = stim.Circuit("RX 0 1\nMXX 0 1\nMXX 0 1\nDETECTOR rec[-1] rec[-2]")
+        tr = translate_circuit(src, self.EQUIV)
+        assert tr.num_qubits == 3       # 2 data + 1 ancilla
+        assert tr.num_measurements == 2  # one per MXX (not two)
+        # The bare ancilla readout uses M (no MX) and carries no inline flip.
+        assert _has_instruction(tr, "M")
+        m_ops = _instructions_with_name(tr, "M")
+        for op in m_ops:
+            assert op.gate_args_copy() == []  # flip folded into E-block
+
+    def test_shared_ancilla_across_pairs(self):
+        # Different pairs share the single scratch ancilla and stay deterministic.
+        src = stim.Circuit("""
+            RX 0 1 2
+            MXX 0 1
+            MXX 0 2
+            MXX 0 1
+            MXX 0 2
+            DETECTOR rec[-2] rec[-4]
+            DETECTOR rec[-1] rec[-3]
+        """)
+        tr = translate_circuit(src, self.EQUIV)
+        assert tr.num_qubits == 4  # 3 data + 1 ancilla
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_emits_xcx_not_bell_cx(self):
+        src = stim.Circuit("RX 0 1\nMXX 0 1\nDETECTOR rec[-1]")
+        tr = translate_circuit(src, self.EQUIV)
+        assert _has_instruction(tr, "XCX")
+
+    def test_noise_block_channels(self):
+        src = stim.Circuit("RX 0 1\nMXX 0 1\nDETECTOR rec[-1]")
+        noise = NoiseParams(scheme="equivalent_v3", p_e=0.001, p_bell_z=0.01)
+        tr = translate_circuit(src, noise)
+        e_ops = _instructions_with_name(tr, "E")
+        # Six mechanisms from _v3_equivalent_mechanisms, all nonzero here.
+        assert len(e_ops) == 6
+        probs = sorted(op.gate_args_copy()[0] for op in e_ops)
+        assert probs == sorted([0.001, 0.01, 0.0005, 0.0005, 0.001, 0.001])
+
+    def test_zero_prob_mechanisms_dropped(self):
+        # With p_bell_z=0, the E(p_bell_z) X-anc line must not be emitted.
+        src = stim.Circuit("RX 0 1\nMXX 0 1\nDETECTOR rec[-1]")
+        noise = NoiseParams(scheme="equivalent_v3", p_e=0.001, p_bell_z=0.0)
+        tr = translate_circuit(src, noise)
+        e_ops = _instructions_with_name(tr, "E")
+        assert len(e_ops) == 5  # six minus the zero-prob p_bell_z line
+
+    def test_p_1_on_mzz_conjugation(self):
+        src = stim.Circuit("R 0 1\nMZZ 0 1\nDETECTOR rec[-1]")
+        noise = NoiseParams(scheme="equivalent_v3", p_e=0.001, p_1=0.0001)
+        tr = translate_circuit(src, noise)
+        dep1 = _instructions_with_name(tr, "DEPOLARIZE1")
+        gadget_dep1 = [op for op in dep1 if op.gate_args_copy() == [0.0001]
+                       and {t.qubit_value for t in op.targets_copy()} == {0, 1}]
+        assert len(gadget_dep1) == 2  # one after each H pair
+
+    def test_repeat_deterministic(self):
+        src = stim.Circuit("""
+            RX 0 1
+            MXX 0 1
+            REPEAT 4 {
+                MXX 0 1
+                DETECTOR rec[-1] rec[-2]
+            }
+        """)
+        tr = translate_circuit(src, self.EQUIV)
+        dem = tr.detector_error_model(decompose_errors=False)
+        assert dem.num_errors == 0
+
+    def test_dem_matches_biased_bell_v3(self):
+        # The equivalent scheme reproduces biased_bell_v3's detector-error
+        # structure (same set of detector-flip patterns).
+        p, pbz = 0.001, 0.01
+        bell = NoiseParams(
+            p_bell_x=p / 2, p_bell_y=p / 2, p_bell_z=pbz, p_data_z=p,
+            p_internal=0, p_m=p, p_1=p / 10, p_init=p,
+            scheme="bell", mzz_gadget="v3",
+        )
+        equiv = NoiseParams(
+            scheme="equivalent_v3", p_e=p, p_bell_z=pbz, p_1=p / 10, p_init=p,
+        )
+        src = stim.Circuit("""
+            RX 0 1
+            MXX 0 1
+            REPEAT 4 {
+                MXX 0 1
+                DETECTOR rec[-1] rec[-2]
+            }
+        """)
+
+        def patterns(noise):
+            dem = translate_circuit(src, noise).detector_error_model(
+                decompose_errors=False
+            )
+            out = set()
+            for e in dem:
+                if e.type != "error":
+                    continue
+                out.add(frozenset(
+                    t.val for t in e.targets_copy() if t.is_relative_detector_id()
+                ))
+            return out
+
+        assert patterns(bell) == patterns(equiv)
+
+    def test_to_dict_round_trip(self):
+        noise = NoiseParams(scheme="equivalent_v3", p_e=0.002, p_bell_z=0.01)
+        restored = NoiseParams.from_dict(noise.to_dict())
+        assert restored.scheme == "equivalent_v3"
+        assert restored.p_e == 0.002
+
+    def test_invalid_scheme_rejected(self):
+        src = stim.Circuit("RX 0 1\nMXX 0 1\nDETECTOR rec[-1]")
+        with pytest.raises(ValueError, match="scheme"):
+            translate_circuit(src, NoiseParams(scheme="nonsense"))
+
+    def test_majority_scheme_not_implemented(self):
+        src = stim.Circuit("RX 0 1\nMXX 0 1\nDETECTOR rec[-1]")
+        with pytest.raises(NotImplementedError):
+            translate_circuit(
+                src, NoiseParams(scheme="equivalent_v3_majority", p_e=0.001)
+            )
+
+
+class TestEquivalentRenderer:
+    """Unit tests for the abstract-mechanism renderer and generator."""
+
+    def test_label_to_target_mapping(self):
+        buf = []
+        mechanisms = [
+            (0.1, frozenset({"M"})),
+            (0.2, frozenset({"X0", "M"})),
+            (0.3, frozenset({"Z1", "M"})),
+        ]
+        _emit_equivalent_noise(buf, mechanisms, anc=2, a=0, b=1)
+        text = "\n".join(buf)
+        assert "E(0.1) X2" in text
+        # X0 -> X on data qubit a (0); M -> X on ancilla (2).
+        assert "E(0.2) X2 X0" in text or "E(0.2) X0 X2" in text
+        # Z1 -> Z on data qubit b (1).
+        assert "E(0.3) X2 Z1" in text or "E(0.3) Z1 X2" in text
+
+    def test_v3_mechanisms_shape(self):
+        mechs = _v3_equivalent_mechanisms(p_e=0.01, p_bell_z=0.02)
+        assert mechs == [
+            (0.01, frozenset({"M"})),
+            (0.02, frozenset({"M"})),
+            (0.005, frozenset({"X0", "M"})),
+            (0.005, frozenset({"X0"})),
+            (0.01, frozenset({"Z0", "M"})),
+            (0.01, frozenset({"Z1", "M"})),
+        ]
