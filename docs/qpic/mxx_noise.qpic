@@ -1,0 +1,26 @@
+d1 W D1
+# a1 W 
+a1 a2 W |00\rangle+|11\rangle< 
+d2 W D2
+
+d1 a1 a2 d2 START
+
+d1 G {\scriptsize idle} fill=lightgray width=20
+d2 G {\scriptsize idle} fill=lightgray width=20
+
+a1 G {\scriptsize X/Y} fill=lightgray width=15
+a1 G {\scriptsize Z} fill=orange!50 width=15
+
+a1 a2 d1 d2 TOUCH
+
+# Stitch each ancilla to its data partner.
+a1 +d1
+a2 +d2
+
+
+a1 d1 G {\scriptsize D1} fill=lightgray
+a2 d2 G {\scriptsize D2} fill=lightgray
+
+# Measure both ancillas in the X basis.
+a1 M $X$
+a2 M $X$

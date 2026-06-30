@@ -1,0 +1,41 @@
+d1 W D1
+d2 W D2
+d3 W D3
+d4 W D4
+a1 a2 a3 a4 W |0000\rangle+|1111\rangle<
+
+d1 d2 d3 d4 a1 a2 a3 a4 START
+
+d1 G {\scriptsize idle} fill=lightgray width=20
+d2 G {\scriptsize idle} fill=lightgray width=20
+d3 G {\scriptsize idle} fill=lightgray width=20
+d4 G {\scriptsize idle} fill=lightgray width=20
+
+# X/Y and Z noise blocks on every ancilla.
+a1 G {\scriptsize X/Y} fill=lightgray width=15
+a1 G {\scriptsize Z} fill=orange!50 width=15
+a2 G {\scriptsize X/Y} fill=lightgray width=15
+a2 G {\scriptsize Z} fill=orange!50 width=15
+a3 G {\scriptsize X/Y} fill=lightgray width=15
+a3 G {\scriptsize Z} fill=orange!50 width=15
+a4 G {\scriptsize X/Y} fill=lightgray width=15
+a4 G {\scriptsize Z} fill=orange!50 width=15
+
+d1 d2 d3 d4 a1 a2 a3 a4 TOUCH
+
+# Stitch each ancilla to its data partner.
+a1 +d1
+a2 +d2
+a3 +d3
+a4 +d4
+
+a1 G {\scriptsize D1} fill=lightgray d1 G {\scriptsize D1} fill=lightgray
+a2 G {\scriptsize D2} fill=lightgray d2 G {\scriptsize D2} fill=lightgray
+a3 G {\scriptsize D3} fill=lightgray d3 G {\scriptsize D3} fill=lightgray
+a4 G {\scriptsize D4} fill=lightgray d4 G {\scriptsize D4} fill=lightgray
+
+# Measure all ancillas in the X basis.
+a1 M $X$
+a2 M $X$
+a3 M $X$
+a4 M $X$
