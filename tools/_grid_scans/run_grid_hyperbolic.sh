@@ -30,10 +30,14 @@ fi
 case "${2:-base}" in
   base)
     OUTPUT_DIR="out/circuits/grid_hyperbolic"
-    SCHEME_ARGS="--noise-model biased_bell_v3" ;;
+    SCHEME_ARGS="--noise-model biased_bell_v3"
+    PZ_HI=3e-2 ;;
   majority)
+    # Repeated measurement lifts the p_z threshold well above the base ceiling,
+    # so the majority scan needs a higher p_z top (cf. honeycomb majority).
     OUTPUT_DIR="out/circuits/grid_hyperbolic_majority"
-    SCHEME_ARGS="--scheme equivalent_v3_majority" ;;
+    SCHEME_ARGS="--scheme equivalent_v3_majority"
+    PZ_HI=1e-1 ;;
   *) echo "unknown scheme: ${2} (use base|majority)" >&2; exit 1 ;;
 esac
 
@@ -44,8 +48,8 @@ ROUNDS_MULTIPLE=3          # run each code for ROUNDS_MULTIPLE * d rounds
 MAX_SHOTS=1000000
 MAX_ERRORS=5000
 
-# Same axes as the honeycomb bell grid: p_res 1e-4..1e-2, p_z 1e-3..3e-2, 25x25.
-NP=25; NPZ=25; P_HI=1e-2; PZ_HI=3e-2
+# p_res 1e-4..1e-2, 25x25; p_z 1e-3..PZ_HI (per-scheme, set above).
+NP=25; NPZ=25; P_HI=1e-2
 P=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-4, np.log10($P_HI), $NP)))")
 PZ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-3, np.log10($PZ_HI), $NPZ)))")
 
