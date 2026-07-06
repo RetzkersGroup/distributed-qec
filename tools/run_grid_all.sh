@@ -27,8 +27,10 @@ bash tools/_grid_scans/run_grid_bell.sh majority
 
 echo "############################################################"
 echo "# 3. Sample hyperbolic Floquet (${HYP_MODE}, 3d rounds) [resume]"
+echo "#    base + 3-repetition majority vote"
 echo "############################################################"
-bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE"
+bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE" base
+bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE" majority
 
 echo "############################################################"
 echo "# 4. Plot"
@@ -38,7 +40,8 @@ uv run python tools/_grid_scans/plot_grid.py \
   --csv "out/collection/grid_bell.csv" --prefix grid_bell
 uv run python tools/_grid_scans/plot_grid.py \
   --csv "out/collection/grid_hyperbolic.csv" --prefix grid_hyperbolic \
-  --code-label "Hyperbolic Floquet code"
+  --code-label "Hyperbolic Floquet code" \
+  --majority-label "Hyperbolic Floquet + 3-rep. majority vote"
 # Combined figures (honeycomb base + majority vs hyperbolic):
 uv run python tools/_grid_scans/plot_grid_summary.py
 uv run python tools/_grid_scans/plot_grid_boundary.py \

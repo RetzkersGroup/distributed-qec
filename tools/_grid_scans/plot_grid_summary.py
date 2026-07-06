@@ -35,17 +35,19 @@ _HYP = str(_ROOT / "out/collection/grid_hyperbolic.csv")
 _BELL = "biased_bell_v3"
 _MAJ = "biased_bell_v3_equivalent_majority"
 
-# Professional, distinct hues. Honeycomb = blue family, hyperbolic = orange
-# family (matched between the two panels); majority vote = green.
+# Professional, distinct hues. Honeycomb = blue/green, hyperbolic = orange/purple
+# (base = darker, majority vote = the paired lighter/greener hue).
 _C_HONEY = "#4e79a7"
-_C_MAJ = "#59a14f"
+_C_HONEY_MAJ = "#59a14f"
 _C_HYP = "#f28e2b"
+_C_HYP_MAJ = "#b07aa1"
 
 # (label, csv, scheme, color, marker) for the top boundary panel.
 _BOUNDARIES = [
     ("Honeycomb code", _HONEY, _BELL, _C_HONEY, "o"),
-    ("Honeycomb + 3-rep. majority vote", _HONEY, _MAJ, _C_MAJ, "D"),
+    ("Honeycomb + 3-rep. majority vote", _HONEY, _MAJ, _C_HONEY_MAJ, "D"),
     ("Hyperbolic Floquet code", _HYP, _BELL, _C_HYP, "s"),
+    ("Hyperbolic Floquet + 3-rep. majority vote", _HYP, _MAJ, _C_HYP_MAJ, "v"),
 ]
 
 # (name, csv, scheme, colormap) for the bottom LER panel base codes.

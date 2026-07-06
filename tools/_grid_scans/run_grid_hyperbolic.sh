@@ -6,9 +6,13 @@ set -e
 # generator (make_grid_circuits_bell.py) and decoder, writing to its own CSV
 # (grid_hyperbolic) so the data stays separate from the honeycomb runs.
 #
-#   bash tools/_grid_scans/run_grid_hyperbolic.sh          # test: d=2,4,6  (l=1,2,3)
-#   bash tools/_grid_scans/run_grid_hyperbolic.sh full     # large: d=2..12 (l=1..6)
+#   bash tools/_grid_scans/run_grid_hyperbolic.sh                 # base, d=2,4,6
+#   bash tools/_grid_scans/run_grid_hyperbolic.sh full            # base, d=2..12
+#   bash tools/_grid_scans/run_grid_hyperbolic.sh test majority   # 3-rep majority vote
 #
+# base (biased_bell_v3) and majority (equivalent_v3_majority = 3 repeated syndrome
+# measurements + majority vote) both write to grid_hyperbolic.csv, distinguished
+# by noise_model -- like the honeycomb bell + majority share grid_bell.csv.
 # Uses `uv run` so it works standalone.
 
 cd "$(dirname "$0")/../.."
@@ -21,9 +25,20 @@ else
   DIST_GLOB='semi_hyperbolic_floquet_l=[123]_*.stim'
 fi
 
+# Scheme: base or the 3-repetition majority-vote equivalent. Each scheme's
+# circuits go to their own dir; both decode into grid_hyperbolic.csv.
+case "${2:-base}" in
+  base)
+    OUTPUT_DIR="out/circuits/grid_hyperbolic"
+    SCHEME_ARGS="--noise-model biased_bell_v3" ;;
+  majority)
+    OUTPUT_DIR="out/circuits/grid_hyperbolic_majority"
+    SCHEME_ARGS="--scheme equivalent_v3_majority" ;;
+  *) echo "unknown scheme: ${2} (use base|majority)" >&2; exit 1 ;;
+esac
+
 INPUT_GLOB="in/circuits/hyperbolic_floquet/8.8.8/**/$DIST_GLOB"
 SCALED_DIR="out/circuits/hyperbolic_3d_inputs"
-OUTPUT_DIR="out/circuits/grid_hyperbolic"
 PREAMBLE="grid_hyperbolic"
 ROUNDS_MULTIPLE=3          # run each code for ROUNDS_MULTIPLE * d rounds
 MAX_SHOTS=1000000
@@ -46,7 +61,7 @@ rm -rf "$OUTPUT_DIR"          # clean slate so the decode glob never mixes runs
 uv run python tools/_grid_scans/make_grid_circuits_bell.py \
   --input "$SCALED_DIR/*.stim" \
   --output-dir "$OUTPUT_DIR" \
-  --noise-model biased_bell_v3 \
+  $SCHEME_ARGS \
   --p-values $P \
   --p-bell-z-values $PZ
 

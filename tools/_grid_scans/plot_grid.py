@@ -430,6 +430,9 @@ def main() -> None:
     parser.add_argument("--code-label", default="Honeycomb code",
                         help="Legend label for the base biased_bell_v3 code "
                              "(e.g. 'Hyperbolic Floquet code').")
+    parser.add_argument("--majority-label",
+                        default="Honeycomb with 3 repetitions and majority vote",
+                        help="Legend label for the majority-vote scheme.")
     parser.add_argument("--out-dir", type=pathlib.Path,
                         default=_ROOT / "out" / "figures",
                         help="Directory for output figures.")
@@ -446,6 +449,7 @@ def main() -> None:
                              "rate instead of the per-observable rate.")
     args = parser.parse_args()
     SCHEME_LABELS["biased_bell_v3"] = args.code_label
+    SCHEME_LABELS["biased_bell_v3_equivalent_majority"] = args.majority_label
 
     # Raw vs per-observable: which rate column feeds both plotting and fitting.
     per_obs = not args.raw
