@@ -19,24 +19,24 @@ PREAMBLE="grid_bell"          # one CSV for every scheme's grid data
 MAX_SHOTS=1000000
 MAX_ERRORS=5000
 
-# p axis: log grid 1e-4 .. 1e-2 (same for every scheme).
-# p_z axis: log grid 1e-3 .. PZ_HI. NP/NPZ = points per axis.
+# p axis: log grid 1e-4 .. P_HI.  p_z axis: log grid 1e-3 .. PZ_HI.
+# NP/NPZ = points per axis. Ranges are per-scheme.
 case "$SCHEME" in
   bell)
     OUTPUT_DIR="out/circuits/grid_bell"
     SCHEME_ARGS="--noise-model biased_bell_v3"
-    NP=25; NPZ=25; PZ_HI=3e-2
+    NP=25; NPZ=25; P_HI=1e-2; PZ_HI=3e-2
     ;;
   majority)
     OUTPUT_DIR="out/circuits/grid_bell_majority"
     SCHEME_ARGS="--scheme equivalent_v3_majority"
-    NP=25; NPZ=25; PZ_HI=1e-1
+    NP=25; NPZ=25; P_HI=2e-3; PZ_HI=1e-1
     ;;
   *)
     echo "unknown scheme: $SCHEME (use 'bell' or 'majority')" >&2; exit 1 ;;
 esac
 
-P=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-4, -2, $NP)))")
+P=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-4, np.log10($P_HI), $NP)))")
 PZ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-3, np.log10($PZ_HI), $NPZ)))")
 
 echo "=== Stage 1: generate '$SCHEME' grid circuits (${NP} p x ${NPZ} p_z) ==="
