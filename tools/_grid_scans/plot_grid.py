@@ -43,7 +43,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
-_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 _SRC = _ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))

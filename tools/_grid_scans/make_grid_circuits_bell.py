@@ -36,7 +36,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import numpy as np
 import stim
 
-_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 _SRC = _ROOT / "src"
 _TOOLS = _ROOT / "tools"
 for _p in (str(_SRC), str(_TOOLS)):

@@ -31,8 +31,8 @@ if [ "$FORCE" != "force" ] && have_csv "out/collection/grid_bell,*.csv"; then
   echo "  found out/collection/grid_bell,*.csv -> reusing it, skipping sampling"
   echo "  (pass 'force' as the 2nd arg to re-sample)"
 else
-  bash tools/run_grid_bell.sh bell
-  bash tools/run_grid_bell.sh majority
+  bash tools/_grid_scans/run_grid_bell.sh bell
+  bash tools/_grid_scans/run_grid_bell.sh majority
 fi
 
 echo "############################################################"
@@ -41,21 +41,21 @@ echo "############################################################"
 if [ "$FORCE" != "force" ] && have_csv "out/collection/grid_hyperbolic,*.csv"; then
   echo "  found out/collection/grid_hyperbolic,*.csv -> reusing it, skipping sampling"
 else
-  bash tools/run_grid_hyperbolic.sh "$HYP_MODE"
+  bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE"
 fi
 
 echo "############################################################"
 echo "# 4. Plot"
 echo "############################################################"
 # Per-code figures (boundary + LER + debug):
-uv run python tools/plot_grid.py \
+uv run python tools/_grid_scans/plot_grid.py \
   --csv "out/collection/grid_bell,*.csv" --prefix grid_bell
-uv run python tools/plot_grid.py \
+uv run python tools/_grid_scans/plot_grid.py \
   --csv "out/collection/grid_hyperbolic,*.csv" --prefix grid_hyperbolic \
   --code-label "Hyperbolic Floquet code"
 # Combined figures (honeycomb base + majority vs hyperbolic):
-uv run python tools/plot_grid_summary.py
-uv run python tools/plot_grid_boundary.py \
+uv run python tools/_grid_scans/plot_grid_summary.py
+uv run python tools/_grid_scans/plot_grid_boundary.py \
   --source "Honeycomb code=out/collection/grid_bell,*.csv" \
   --source "Hyperbolic Floquet code=out/collection/grid_hyperbolic,*.csv"
 

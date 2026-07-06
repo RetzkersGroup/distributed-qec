@@ -23,8 +23,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
-_ROOT = pathlib.Path(__file__).resolve().parent.parent
-for _p in (str(_ROOT / "tools"), str(_ROOT / "src")):
+_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+for _p in (str(_ROOT / "tools" / "_grid_scans"), str(_ROOT / "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

@@ -5,13 +5,13 @@ set -e
 # a SHARED CSV (out/collection/grid_bell,<date>.csv) so every scheme's grid data
 # lives in one place (distinguished by the noise_model metadata column).
 #
-#   bash tools/run_grid_bell.sh            # default: two-ancilla bell scheme
-#   bash tools/run_grid_bell.sh majority   # repeated-measurement (majority vote)
+#   bash tools/_grid_scans/run_grid_bell.sh            # default: two-ancilla bell scheme
+#   bash tools/_grid_scans/run_grid_bell.sh majority   # repeated-measurement (majority vote)
 #
 # Uses `uv run` so it works standalone. Each scheme writes its circuits to its
 # own directory (so the decode glob never crosses schemes) but shares the CSV.
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 SCHEME="${1:-bell}"
 INPUT_GLOB="in/circuits/honeycomb_gidney/model=SDEM3,*obs=H*.stim"
@@ -41,7 +41,7 @@ PZ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in n
 
 echo "=== Stage 1: generate '$SCHEME' grid circuits (${NP} p x ${NPZ} p_z) ==="
 echo "p_z grid: $PZ"
-uv run python tools/make_grid_circuits_bell.py \
+uv run python tools/_grid_scans/make_grid_circuits_bell.py \
   --input "$INPUT_GLOB" \
   --output-dir "$OUTPUT_DIR" \
   $SCHEME_ARGS \

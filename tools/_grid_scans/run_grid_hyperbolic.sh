@@ -6,12 +6,12 @@ set -e
 # generator (make_grid_circuits_bell.py) and decoder, writing to its own CSV
 # (grid_hyperbolic) so the data stays separate from the honeycomb runs.
 #
-#   bash tools/run_grid_hyperbolic.sh          # test: d=2,4,6  (l=1,2,3)
-#   bash tools/run_grid_hyperbolic.sh full     # large: d=2..12 (l=1..6)
+#   bash tools/_grid_scans/run_grid_hyperbolic.sh          # test: d=2,4,6  (l=1,2,3)
+#   bash tools/_grid_scans/run_grid_hyperbolic.sh full     # large: d=2..12 (l=1..6)
 #
 # Uses `uv run` so it works standalone.
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 # Distance set. l=1,2,3 -> d=2,4,6 (small, for validating the pipeline);
 # l=1..6 -> d=2,4,6,8,10,12 (the full run, much heavier to decode).
@@ -36,14 +36,14 @@ PZ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in n
 
 echo "=== Stage 0: rescale each code to ${ROUNDS_MULTIPLE}d rounds ==="
 rm -rf "$SCALED_DIR"          # avoid stale distances from a previous run
-uv run python tools/scale_rounds.py \
+uv run python tools/_grid_scans/scale_rounds.py \
   --input "$INPUT_GLOB" \
   --output-dir "$SCALED_DIR" \
   --rounds-multiple "$ROUNDS_MULTIPLE"
 
 echo "=== Stage 1: generate hyperbolic grid circuits ==="
 rm -rf "$OUTPUT_DIR"          # clean slate so the decode glob never mixes runs
-uv run python tools/make_grid_circuits_bell.py \
+uv run python tools/_grid_scans/make_grid_circuits_bell.py \
   --input "$SCALED_DIR/*.stim" \
   --output-dir "$OUTPUT_DIR" \
   --noise-model biased_bell_v3 \
