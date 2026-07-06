@@ -30,8 +30,8 @@ for _p in (str(_ROOT / "tools" / "_grid_scans"), str(_ROOT / "src")):
 
 import plot_grid as g  # noqa: E402
 
-_HONEY = str(_ROOT / "out/collection/grid_bell,*.csv")
-_HYP = str(_ROOT / "out/collection/grid_hyperbolic,*.csv")
+_HONEY = str(_ROOT / "out/collection/grid_bell.csv")
+_HYP = str(_ROOT / "out/collection/grid_hyperbolic.csv")
 _BELL = "biased_bell_v3"
 _MAJ = "biased_bell_v3_equivalent_majority"
 

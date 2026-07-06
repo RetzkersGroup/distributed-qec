@@ -50,9 +50,9 @@ uv run python tools/_grid_scans/make_grid_circuits_bell.py \
   --p-values $P \
   --p-bell-z-values $PZ
 
-echo "=== Stage 2: decode -> out/collection/${PREAMBLE},<date>.csv ==="
+echo "=== Stage 2: decode (resume) -> out/collection/${PREAMBLE}.csv ==="
 uv run python tools/decode.py \
   --circuit-files "$OUTPUT_DIR"/*.stim \
   --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
   --print-progress \
-  --output-preamble "$PREAMBLE"
+  --output-preamble "$PREAMBLE" --resume

@@ -2,7 +2,7 @@
 """Paper-style plots for the honeycomb (p, p_z) grid scan.
 
 Consumes the shared grid CSV produced by tools/run_grid_bell.sh
-(out/collection/grid_bell,*.csv), where p (= p_res) and p_z (= p_bell_z) are two
+(out/collection/grid_bell.csv), where p (= p_res) and p_z (= p_bell_z) are two
 independent axes and expected_distance is the code distance. The CSV may hold
 several schemes at once (bell, majority-vote, ...), separated by the
 noise_model column; each is fitted and drawn as its own boundary curve, and the
@@ -17,7 +17,7 @@ crossing, and draw:
   grid_bell_paper_figure.pdf       stacked: (a) boundary on top, (b) LER below
   grid_bell_ler_debug/*.png        the LER panel, one figure per sampled p_res (debug)
 
-Loads with pandas + ast (our json_metadata is a Python-dict repr, not JSON) and
+Loads sinter-format CSVs (JSON metadata; legacy pandas repr also handled) and
 reuses src/threshold_fit.py (the same locate -> quadratic-FSS estimator) fitting
 along the p_z axis. Logical rate is per-round, per-observable so the
 different-rounds distances are comparable.
@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import ast
 import glob
+import json
 import pathlib
 import re
 import sys
@@ -131,6 +132,16 @@ def _rounds_from_fn(text):
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
+def _parse_meta(s):
+    """Parse a json_metadata cell: sinter-format (JSON) or legacy pandas (repr)."""
+    if not isinstance(s, str):
+        return dict(s)
+    try:
+        return json.loads(s)              # sinter's CSV (JSON)
+    except (json.JSONDecodeError, ValueError):
+        return ast.literal_eval(s)        # legacy pandas CSV (Python repr)
+
+
 def load_grid(csv_globs: str | list[str]) -> pd.DataFrame:
     """Load grid decode CSV(s): merge by strong_id, unpack metadata, add pL."""
     if isinstance(csv_globs, str):
@@ -139,12 +150,12 @@ def load_grid(csv_globs: str | list[str]) -> pd.DataFrame:
     if not files:
         raise FileNotFoundError(f"No files matched: {csv_globs}")
 
-    df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+    # skipinitialspace: sinter's CSV_HEADER pads column names with spaces.
+    df = pd.concat([pd.read_csv(f, skipinitialspace=True) for f in files],
+                   ignore_index=True)
     df = df.groupby("strong_id").agg(_AGG).reset_index()
 
-    meta = df["json_metadata"].apply(
-        lambda s: ast.literal_eval(s) if isinstance(s, str) else dict(s)
-    )
+    meta = df["json_metadata"].apply(_parse_meta)
     for c in _META:
         df[c] = meta.apply(lambda m, c=c: m.get(c))
 
@@ -411,7 +422,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--csv", default=str(_ROOT / "out/collection/grid_bell,*.csv"),
+    parser.add_argument("--csv", default=str(_ROOT / "out/collection/grid_bell.csv"),
                         help="Glob for grid decode CSV(s).")
     parser.add_argument("--prefix", default="grid_bell",
                         help="Basename prefix for the output figures "
