@@ -233,18 +233,32 @@ def _has_protective_regime(df: pd.DataFrame, p: float) -> bool:
     return ys_hi[0] < ys_lo[j]
 
 
+def _cutoff_for(df: pd.DataFrame) -> float:
+    """Per-observable saturation cutoff for the fit, by scheme.
+
+    The equivalent/majority schemes cross at a higher per-observable rate (their
+    p_z threshold is large, so the k=10 rate is already sizeable there), so a 0.3
+    cutoff would clip points at the crossing; use 0.45 for them, 0.3 otherwise.
+    Assumes `df` is a single scheme (fit_pz_threshold is always called per-scheme).
+    """
+    nm = df["noise_model"].dropna()
+    return 0.45 if (len(nm) and "equivalent" in str(nm.iloc[0])) else 0.3
+
+
 def fit_pz_threshold(df: pd.DataFrame, p: float, n_per_side: int = 2,
-                     pz_max: float = 0.09, logical_cutoff: float = 0.3,
+                     pz_max: float = 0.09, logical_cutoff: float | None = None,
                      rate_col: str = "pL", sigma_col: str = "sigma"):
     """Fit p_z threshold at fixed p_res across all distances. None if no fit.
 
     ``n_per_side`` sets the FSS fit window: n_per_side p_z values on each side of
     the coarse threshold plus the center (default 2 -> 5 p_z values). Points with
     p_z above ``pz_max`` are excluded so the crossing is never pinned against the
-    grid ceiling. Points whose *raw* logical error rate exceeds
-    ``logical_cutoff`` are dropped so the min-variance locate isn't seeded by the
-    saturated high-p_z plateau (where every distance bunches near 0.5/1).
+    grid ceiling. Points whose per-observable rate exceeds ``logical_cutoff``
+    (default: scheme-aware, see `_cutoff_for`) are dropped so the min-variance
+    locate isn't seeded by the saturated high-p_z plateau.
     """
+    if logical_cutoff is None:
+        logical_cutoff = _cutoff_for(df)
     sub = df[np.isclose(df["p"], p) & (df["errors"] > 0) & (df["shots"] > 0)
              & (df["p_bell_z"] <= pz_max) & (df["pL"] < logical_cutoff)]
     if sub["expected_distance"].nunique() < 2:
