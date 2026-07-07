@@ -23,6 +23,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
+plt.rcParams.update({"xtick.labelsize": 12, "ytick.labelsize": 12})
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 for _p in (str(_ROOT / "tools" / "_grid_scans"), str(_ROOT / "src")):
     if _p not in sys.path:
@@ -94,10 +96,10 @@ def main() -> None:
         print(f"{label}: {len(thr)} thresholds")
     if args.logy_boundary:
         ax_top.set_yscale("log")
-    ax_top.set_xlabel(r"$p_{\text{res}}$", fontsize=11)
-    ax_top.set_ylabel(r"$p_z$ (threshold)", fontsize=11)
+    ax_top.set_xlabel(r"$p_{\text{res}}$", fontsize=14)
+    ax_top.set_ylabel(r"$p_z$ (threshold)", fontsize=14)
     ax_top.grid(True, alpha=0.3)
-    ax_top.legend(fontsize=8.5, framealpha=0.9)
+    ax_top.legend(fontsize=11.5, framealpha=0.9)
 
     # ---- (b) per-observable LER vs p_z at fixed p_res ------------------------
     handles = []
@@ -130,14 +132,14 @@ def main() -> None:
 
     ax_bot.set_xscale("log")
     ax_bot.set_yscale("log")
-    ax_bot.set_xlabel(r"$p_z$", fontsize=11)
-    ax_bot.set_ylabel("Logical error rate per observable", fontsize=11)
-    ax_bot.set_title(rf"$p_{{\text{{res}}}} = {args.p_example:.2g}$", fontsize=10)
+    ax_bot.set_xlabel(r"$p_z$", fontsize=14)
+    ax_bot.set_ylabel("Logical error rate per observable", fontsize=14)
+    ax_bot.set_title(rf"$p_{{\text{{res}}}} = {args.p_example:.2g}$", fontsize=13)
     ax_bot.grid(True, which="both", alpha=0.3)
-    ax_bot.legend(handles=handles, fontsize=7.5, loc="lower right", framealpha=0.9)
+    ax_bot.legend(handles=handles, fontsize=10.5, loc="lower right", framealpha=0.9)
 
     for ax, lab in [(ax_top, "(a)"), (ax_bot, "(b)")]:
-        ax.text(-0.02, 1.02, lab, transform=ax.transAxes, fontsize=13,
+        ax.text(-0.02, 1.02, lab, transform=ax.transAxes, fontsize=16,
                 fontweight="bold", va="bottom", ha="left")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

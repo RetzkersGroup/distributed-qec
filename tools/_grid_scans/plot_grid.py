@@ -44,6 +44,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
+plt.rcParams.update({"xtick.labelsize": 12, "ytick.labelsize": 12})
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 _SRC = _ROOT / "src"
 if str(_SRC) not in sys.path:
@@ -343,14 +345,14 @@ def plot_ler_overlay(df: pd.DataFrame, p_res: float, schemes: list[str], ax=None
         ax.set_xlim(xlim)
     if ylim is not None:
         ax.set_ylim(ylim)
-    ax.set_xlabel(r"$p_z$", fontsize=11)
+    ax.set_xlabel(r"$p_z$", fontsize=14)
     ax.set_ylabel("Logical error rate per observable" if per_observable
-                  else "Logical error rate", fontsize=11)
+                  else "Logical error rate", fontsize=14)
     if show_title:
         title = rf"$p_{{\text{{res}}}} = {p_res:.2g}$"
         if len(schemes_plotted) == 1:
             title += f"  [{scheme_tag(schemes_plotted[0])}]"
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title, fontsize=13)
     ax.grid(True, which="both", alpha=0.3)
 
     # Two-part legend: color = distance, linestyle = scheme.
@@ -362,7 +364,7 @@ def plot_ler_overlay(df: pd.DataFrame, p_res: float, schemes: list[str], ax=None
                         label=scheme_label(s))
                  for s in schemes_plotted]
     if d_handles or s_handles:
-        ax.legend(handles=d_handles + s_handles, fontsize=7,
+        ax.legend(handles=d_handles + s_handles, fontsize=10,
                   loc="lower right", framealpha=0.8)
     return fig if own else None
 
@@ -382,11 +384,11 @@ def plot_threshold_vs_p(thr_by_scheme: dict, ax=None):
                     label=scheme_label(scheme),
                     markersize=6, linewidth=1.6, capsize=3)
     # Linear axes (lin-lin) for the threshold boundary.
-    ax.set_xlabel(r"$p_{\text{res}}$", fontsize=11)
-    ax.set_ylabel(r"$p_z^*$ (threshold)", fontsize=11)
+    ax.set_xlabel(r"$p_{\text{res}}$", fontsize=14)
+    ax.set_ylabel(r"$p_z^*$ (threshold)", fontsize=14)
     ax.grid(True, alpha=0.3)
     if len(thr_by_scheme) > 1:
-        ax.legend(fontsize=8)
+        ax.legend(fontsize=11)
     return fig if own else None
 
 
@@ -403,7 +405,7 @@ def plot_paper_figure(df: pd.DataFrame, p_example: float, thr_by_scheme: dict,
     plot_threshold_vs_p(thr_by_scheme, ax=ax_a)
     plot_ler_overlay(df, p_example, ler_schemes, ax=ax_b, per_observable=per_observable)
     for ax, label in [(ax_a, "(a)"), (ax_b, "(b)")]:
-        ax.text(-0.02, 1.03, label, transform=ax.transAxes, fontsize=12,
+        ax.text(-0.02, 1.03, label, transform=ax.transAxes, fontsize=15,
                 fontweight="bold", va="bottom", ha="left")
     return fig
 
@@ -535,7 +537,7 @@ def main() -> None:
                 plot_ler_overlay(df, float(p_res), [s], ax=axR,
                                  xlim=xlim, ylim=ylim, per_observable=False)
                 fig.suptitle(rf"$p_{{\text{{res}}}} = {p_res:.2g}$  [{scheme_tag(s)}]",
-                             fontsize=11)
+                             fontsize=14)
                 fig.savefig(dbg_dir / f"{scheme_tag(s)}_{i:02d}_ler_pres={p_res:.5g}.png",
                             dpi=130, bbox_inches="tight")
                 plt.close(fig)
