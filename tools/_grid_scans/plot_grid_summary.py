@@ -50,10 +50,10 @@ _BOUNDARIES = [
     ("Hyperbolic Floquet + 3-rep. majority vote", _HYP, _MAJ, _C_HYP_MAJ, "v"),
 ]
 
-# (name, csv, scheme, colormap) for the bottom LER panel base codes.
+# (name, csv, scheme, colormap, threshold-vline color) for the bottom LER panel.
 _CODES = [
-    ("Honeycomb", _HONEY, _BELL, plt.get_cmap("Blues")),
-    ("Hyperbolic Floquet", _HYP, _BELL, plt.get_cmap("Oranges")),
+    ("Honeycomb", _HONEY, _BELL, plt.get_cmap("Blues"), _C_HONEY),
+    ("Hyperbolic Floquet", _HYP, _BELL, plt.get_cmap("Oranges"), _C_HYP),
 ]
 
 
@@ -95,13 +95,13 @@ def main() -> None:
     if args.logy_boundary:
         ax_top.set_yscale("log")
     ax_top.set_xlabel(r"$p_{\text{res}}$", fontsize=11)
-    ax_top.set_ylabel(r"$p_z^{*}$ (threshold)", fontsize=11)
+    ax_top.set_ylabel(r"$p_z$ (threshold)", fontsize=11)
     ax_top.grid(True, alpha=0.3)
     ax_top.legend(fontsize=8.5, framealpha=0.9)
 
     # ---- (b) per-observable LER vs p_z at fixed p_res ------------------------
     handles = []
-    for cname, csv, scheme, cmap in _CODES:
+    for cname, csv, scheme, cmap, vcolor in _CODES:
         sdf = load(csv)
         sdf = sdf[sdf["noise_model"] == scheme]
         p_vals = sorted(sdf["p"].dropna().unique())
@@ -119,9 +119,14 @@ def main() -> None:
             handles.append(Line2D([0], [0], color=color, marker="o",
                                   linestyle="-",
                                   label=f"{cname} {g._code_label(sdf, d)}"))
+        # Threshold line for this code, colored to match its family, with its
+        # value in the legend so the two are easy to tell apart.
         fit = g.fit_pz_threshold(sdf, p)
         if fit is not None:
-            ax_bot.axvline(fit.p_th, color=cmap(0.98), linestyle="--", linewidth=1.3)
+            ax_bot.axvline(fit.p_th, color=vcolor, linestyle="--", linewidth=1.6)
+            handles.append(Line2D([0], [0], color=vcolor, linestyle="--",
+                                  linewidth=1.6,
+                                  label=rf"{cname} threshold: $p_z = {fit.p_th:.2g}$"))
 
     ax_bot.set_xscale("log")
     ax_bot.set_yscale("log")
