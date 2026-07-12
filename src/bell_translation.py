@@ -407,14 +407,22 @@ def _v3_equivalent_mechanisms(p_e: float, p_bell_z: float) -> list:
 
 
 def _equiv_mechanisms_for(noise: NoiseParams) -> list:
-    """Pick the mechanism list for the active equivalent scheme."""
-    if noise.scheme == "equivalent_v3":
-        return _v3_equivalent_mechanisms(noise.p_e, noise.p_bell_z)
-    if noise.scheme == "equivalent_v3_majority":
-        # Imported lazily: the majority calculator builds a stim circuit and is
-        # only needed for this scheme.
-        from equivalent_noise_calculator import get_equivalent_noise_operations
+    """Pick the mechanism list for the active equivalent scheme.
 
+    Both equivalent schemes now come from equivalent_noise_calculator (imported
+    lazily -- it builds a stim reference circuit). equivalent_v3 uses the
+    single-repetition block; equivalent_v3_majority the 3-repeat majority-vote
+    block. The static hand-written ``_v3_equivalent_mechanisms`` is kept below
+    for debugging / cross-checking but is no longer wired in.
+    """
+    from equivalent_noise_calculator import (
+        get_equivalent_noise_operations,
+        get_equivalent_noise_operations_single,
+    )
+
+    if noise.scheme == "equivalent_v3":
+        return get_equivalent_noise_operations_single(noise.p_e, noise.p_bell_z)
+    if noise.scheme == "equivalent_v3_majority":
         return get_equivalent_noise_operations(noise.p_e, noise.p_bell_z)
     raise AssertionError(noise.scheme)
 
