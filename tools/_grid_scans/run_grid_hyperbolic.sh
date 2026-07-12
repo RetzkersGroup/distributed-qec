@@ -29,8 +29,10 @@ fi
 # circuits go to their own dir; both decode into grid_hyperbolic.csv.
 case "${2:-base}" in
   base)
+    # non-repeated baseline = single-ancilla 1-rep equivalent (equivalent_v3),
+    # which reproduces the two-ancilla biased_bell_v3 exactly.
     OUTPUT_DIR="out/circuits/grid_hyperbolic"
-    SCHEME_ARGS="--noise-model biased_bell_v3"
+    SCHEME_ARGS="--scheme equivalent_v3"
     PZ_HI=3e-2 ;;
   majority)
     # Repeated measurement lifts the p_z threshold well above the base ceiling,

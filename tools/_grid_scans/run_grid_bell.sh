@@ -23,8 +23,10 @@ MAX_ERRORS=5000
 # NP/NPZ = points per axis. Ranges are per-scheme.
 case "$SCHEME" in
   bell)
+    # "bell" = the non-repeated baseline; now the single-ancilla 1-rep equivalent
+    # (equivalent_v3), which reproduces the two-ancilla biased_bell_v3 exactly.
     OUTPUT_DIR="out/circuits/grid_bell"
-    SCHEME_ARGS="--noise-model biased_bell_v3"
+    SCHEME_ARGS="--scheme equivalent_v3"
     NP=25; NPZ=25; P_HI=1e-2; PZ_HI=3e-2
     ;;
   majority)

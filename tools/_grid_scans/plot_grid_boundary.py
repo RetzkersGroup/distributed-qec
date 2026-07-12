@@ -41,13 +41,17 @@ def main() -> None:
     )
     ap.add_argument("--source", action="append", required=True,
                     help="LABEL=CSV_GLOB (repeatable).")
-    ap.add_argument("--scheme", default="biased_bell_v3",
-                    help="noise_model to fit from each source (default biased_bell_v3).")
+    ap.add_argument("--scheme", default="biased_bell_v3_equivalent",
+                    help="noise_model to fit from each source "
+                         "(default biased_bell_v3_equivalent, the 1-rep baseline).")
     ap.add_argument("--raw", action="store_true",
                     help="Fit on the raw rate instead of per-observable.")
     ap.add_argument("--out", type=pathlib.Path,
                     default=_ROOT / "out" / "figures" / "grid_combined_threshold.png")
+    ap.add_argument("--method", choices=["minvar", "fss"], default="fss",
+                    help="Threshold estimator (default fss).")
     args = ap.parse_args()
+    g.THRESHOLD_METHOD = args.method
 
     rate_col, sigma_col = ("pL_raw", "sigma_raw") if args.raw else ("pL", "sigma")
 

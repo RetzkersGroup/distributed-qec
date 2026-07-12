@@ -285,14 +285,59 @@ def fit_pz_threshold(df: pd.DataFrame, p: float, n_per_side: int = 2,
     return fit
 
 
+# Threshold estimator selected across the whole module: "fss" (quadratic
+# finite-size scaling, default) or "minvar" (plateau-relative min-variance point).
+THRESHOLD_METHOD = "fss"
+
+
+def pz_threshold_min_variance(df: pd.DataFrame, p: float, rate_col: str = "pL"):
+    """Min-variance p_z crossing at fixed p_res, with a plateau-relative guard.
+
+    At each p_z, take the mean logical error and the variance of log(rate) across
+    distances. The maximal error rate is the largest mean (the saturated plateau);
+    the threshold is the p_z of minimum log-variance among points whose mean is
+    below half that maximum. Returns the point (no error bar), or None. The
+    protective-regime guard makes the boundary end where there is no crossing.
+    """
+    if not _has_protective_regime(df, p):
+        return None
+    sub = df[np.isclose(df["p"], p) & (df["errors"] > 0) & (df["shots"] > 0)]
+    xs, means, varlog = [], [], []
+    for x, grp in sub.groupby("p_bell_z"):
+        r = grp[rate_col].to_numpy(float)
+        r = r[r > 0]
+        if len(r) < 2:
+            continue
+        xs.append(float(x))
+        means.append(float(r.mean()))
+        varlog.append(float(np.var(np.log(r))))
+    if not xs:
+        return None
+    xs, means, varlog = np.array(xs), np.array(means), np.array(varlog)
+    valid = means < 0.5 * means.max()
+    if not valid.any():
+        return None
+    return float(xs[np.argmin(np.where(valid, varlog, np.inf))])
+
+
+def estimate_pz_threshold(df: pd.DataFrame, p: float, rate_col: str = "pL",
+                          sigma_col: str = "sigma"):
+    """Dispatch the active threshold estimator; return (p_th, p_th_err) or None."""
+    if THRESHOLD_METHOD == "minvar":
+        pth = pz_threshold_min_variance(df, p, rate_col=rate_col)
+        return (pth, 0.0) if pth is not None else None
+    fit = fit_pz_threshold(df, p, rate_col=rate_col, sigma_col=sigma_col)
+    return (fit.p_th, fit.p_th_err) if fit is not None else None
+
+
 def collect_thresholds(df: pd.DataFrame, rate_col: str = "pL",
                        sigma_col: str = "sigma"):
-    """Fit p_z threshold at every p_res; return sorted (p, p_th, p_th_err)."""
+    """Estimate p_z threshold at every p_res; return sorted (p, p_th, p_th_err)."""
     out = []
     for p in sorted(df["p"].dropna().unique()):
-        fit = fit_pz_threshold(df, float(p), rate_col=rate_col, sigma_col=sigma_col)
-        if fit is not None and np.isfinite(fit.p_th):
-            out.append((float(p), fit.p_th, fit.p_th_err))
+        res = estimate_pz_threshold(df, float(p), rate_col=rate_col, sigma_col=sigma_col)
+        if res is not None and np.isfinite(res[0]):
+            out.append((float(p), res[0], res[1]))
     return out
 
 
@@ -333,9 +378,9 @@ def plot_ler_overlay(df: pd.DataFrame, p_res: float, schemes: list[str], ax=None
                         linestyle=ls, color=COLORS.get(d), markersize=4,
                         linewidth=1.4, capsize=3, elinewidth=0.8)
             distances_seen.add(d)
-        fit = fit_pz_threshold(sdf, p_res, rate_col=rate_col, sigma_col=sigma_col)
-        if fit is not None:
-            ax.axvline(fit.p_th, color=SCHEME_COLORS.get(s, "k"),
+        res = estimate_pz_threshold(sdf, p_res, rate_col=rate_col, sigma_col=sigma_col)
+        if res is not None:
+            ax.axvline(res[0], color=SCHEME_COLORS.get(s, "k"),
                        linestyle=ls, linewidth=1.2)
         schemes_plotted.append(s)
 
@@ -463,8 +508,14 @@ def main() -> None:
     parser.add_argument("--raw", action="store_true",
                         help="Plot and fit on the raw (P any-observable-fails) "
                              "rate instead of the per-observable rate.")
+    parser.add_argument("--method", choices=["minvar", "fss"], default="fss",
+                        help="Threshold estimator: minvar = plateau-relative "
+                             "min-variance crossing (default); fss = quadratic FSS.")
     args = parser.parse_args()
-    SCHEME_LABELS["biased_bell_v3"] = args.code_label
+    global THRESHOLD_METHOD
+    THRESHOLD_METHOD = args.method
+    # The non-repeated baseline is now the single-ancilla 1-rep equivalent.
+    SCHEME_LABELS["biased_bell_v3_equivalent"] = args.code_label
     SCHEME_LABELS["biased_bell_v3_equivalent_majority"] = args.majority_label
 
     # Raw vs per-observable: which rate column feeds both plotting and fitting.
