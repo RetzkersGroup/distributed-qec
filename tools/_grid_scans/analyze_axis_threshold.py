@@ -38,6 +38,7 @@ for _p in (str(_ROOT / "tools" / "_grid_scans"), str(_ROOT / "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+from math import comb  # noqa: E402
 from scipy.optimize import brentq  # noqa: E402
 
 import plot_grid as g  # noqa: E402  (load_grid, fit_pz_threshold, _pz_curve, _cutoff_for, ...)
@@ -53,16 +54,31 @@ def _invert(f, target):
     except Exception:
         return None
 
+
+def _maj_transform(reps):
+    """p_z transform: probability an R-repetition majority vote fails (>=R//2+1)."""
+    thr = reps // 2 + 1
+    return lambda p: sum(comb(reps, k) * p ** k * (1 - p) ** (reps - k)
+                         for k in range(thr, reps + 1))
+
+
+def _odd_transform(reps):
+    """p_res transform: probability of an odd number of flips over R rounds."""
+    return lambda p: sum(comb(reps, k) * p ** k * (1 - p) ** (reps - k)
+                         for k in range(1, reps + 1, 2))
+
 # Grid is families (rows) x schemes (cols). noise_model strings identify schemes.
 _BASE = "biased_bell_v3"                       # two-ancilla Bell (physical)
 _SINGLE = "biased_bell_v3_equivalent"          # single-rep equivalent (calculator)
 _MAJ = "biased_bell_v3_equivalent_majority"    # 3-rep majority vote (calculator)
+_MAJ5 = "biased_bell_v3_equivalent_majority5"  # 5-rep majority vote (calculator)
 _FAMILIES = [("honeycomb", "Honeycomb"), ("hyperbolic", "Hyperbolic Floquet")]
-# The non-repeated baseline is now the single-ancilla 1-rep equivalent (it
-# reproduces the two-ancilla biased_bell_v3 exactly), so only two schemes remain.
+# (noise_model, panel label, repetitions). The non-repeated baseline is the
+# single-ancilla 1-rep equivalent (reproduces the two-ancilla biased_bell_v3).
 _SCHEMES = [
-    (_SINGLE, "1-rep equivalent"),
-    (_MAJ, "3-rep majority vote"),
+    (_SINGLE, "1-rep equivalent", 1),
+    (_MAJ, "3-rep majority vote", 3),
+    (_MAJ5, "5-rep majority vote", 5),
 ]
 
 # Per-axis presentation. p_z majority thresholds sit near ~7%, so the p_z fit
@@ -71,16 +87,15 @@ _AXES = {
     # `expected` is a reference curve for the 3-repetition gadget, overlaid for
     # comparison: majority-vote failure prob (>=2 of 3 wrong) on the p_z axis,
     # and odd-number-of-flips prob (1 or 3 of 3) on the p_res axis.
+    # `family` selects the R-repetition transform used to predict the repeated
+    # threshold from the 1-rep one: "odd" (odd # of flips) on p_res, "maj"
+    # (majority failure) on p_z.
     "p": dict(col="p", fixed="p_bell_z", xlabel=r"$p_{\mathrm{res}}$",
               sym=r"p_{\mathrm{res}}^*", title=r"Pure $p_{\mathrm{res}}$ threshold at $p_z = 0$",
-              name="p_res threshold at p_z = 0",
-              expected=lambda x: 3 * x * (1 - x) ** 2 + x ** 3,
-              exp_label=r"$3p_{\mathrm{res}}(1-p_{\mathrm{res}})^2 + p_{\mathrm{res}}^3$"),
+              name="p_res threshold at p_z = 0", family="odd"),
     "p_bell_z": dict(col="p_bell_z", fixed="p", xlabel=r"$p_z$",
                      sym=r"p_z^*", title=r"Pure $p_z$ threshold at $p_{\mathrm{res}} = 0$",
-                     name="p_z threshold at p_res = 0",
-                     expected=lambda x: 3 * x ** 2 * (1 - x) + x ** 3,
-                     exp_label=r"$3p_z^2(1-p_z) + p_z^3$"),
+                     name="p_z threshold at p_res = 0", family="maj"),
 }
 
 
@@ -176,9 +191,10 @@ def _fit(sub, xcol, nm, method="minvar"):
     if xcol == "p":
         fit = _fit_p_axis(sub)
     else:
-        # Majority thresholds sit near ~7%, above the 0.09 grid cap; raise pz_max.
+        # Majority thresholds sit above the 0.09 grid cap (3-rep ~7%, 5-rep ~11%);
+        # raise pz_max accordingly.
         p_val = float(sub["p"].median())
-        pz_max = 0.16 if "equivalent" in nm else 0.09
+        pz_max = 0.25 if "majority5" in nm else (0.16 if "equivalent" in nm else 0.09)
         fit = g.fit_pz_threshold(sub, p_val, pz_max=pz_max)
     return (fit.p_th, fit.p_th_err) if fit is not None else None
 
@@ -214,8 +230,9 @@ def main() -> None:
                              figsize=(5 * len(_SCHEMES), 4.3 * len(_FAMILIES)),
                              constrained_layout=True, squeeze=False)
     thr_by: dict[tuple[str, str], float | None] = {}  # (family, scheme) -> p_th
+    transform_family = {"maj": _maj_transform, "odd": _odd_transform}[ax_cfg["family"]]
     for r, (fam, fam_label) in enumerate(_FAMILIES):
-        for c, (nm, s_label) in enumerate(_SCHEMES):
+        for c, (nm, s_label, reps) in enumerate(_SCHEMES):
             ax = axes[r][c]
             sub = df[(df["family"] == fam) & (df["noise_model"] == nm)]
             for d in sorted(int(x) for x in sub["expected_distance"].dropna().unique()):
@@ -238,11 +255,11 @@ def main() -> None:
             else:
                 thr_txt = "no threshold fit"
 
-            # On the 3-rep panel, overlay the threshold predicted from the paired
-            # 1-rep equivalent (same gadget, apples-to-apples) through the 3-rep
-            # transform f: p_th^3rep = f^{-1}(p_th^1rep).
-            if nm == _MAJ:
-                pred = _invert(ax_cfg["expected"], thr_by.get((fam, _SINGLE)))
+            # On each repeated panel, overlay the threshold predicted from the
+            # paired 1-rep equivalent through the R-repetition transform:
+            # p_th^Rrep = f_R^{-1}(p_th^1rep).
+            if reps > 1:
+                pred = _invert(transform_family(reps), thr_by.get((fam, _SINGLE)))
                 if pred is not None:
                     ax.axvline(pred, color="#d62728", linestyle=":", linewidth=2.0,
                                label=rf"predicted from 1-rep: ${ax_cfg['sym']} = {pred:.3g}$")
@@ -261,22 +278,24 @@ def main() -> None:
     fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
 
-    # Comparison table: measured 3-rep threshold vs the value predicted from the
-    # paired 1-rep equivalent threshold through the 3-rep transform.
+    # Comparison table: each repeated scheme's measured threshold vs the value
+    # predicted from the paired 1-rep equivalent through the R-rep transform.
     def _s(v, w):
         return (f"{v:.4g}".rjust(w) if v is not None else "n/a".rjust(w))
 
-    print(f"\n  {ax_cfg['name']}  (thresholds; 3-rep predicted from 1-rep equiv)")
-    print("  " + "-" * 70)
-    print(f"  {'code':<16s}{'1-rep':>11s}{'3-rep meas':>13s}"
-          f"{'3-rep pred':>13s}{'meas/pred':>12s}")
+    rep_schemes = [(nm, lbl, reps) for nm, lbl, reps in _SCHEMES if reps > 1]
+    print(f"\n  {ax_cfg['name']}  (repeated thresholds predicted from 1-rep equiv)")
+    print("  " + "-" * 78)
+    print(f"  {'code':<14s}{'rep':>4s}{'1-rep':>11s}{'meas':>12s}"
+          f"{'pred':>12s}{'meas/pred':>12s}")
     for fam, label in _FAMILIES:
         single = thr_by.get((fam, _SINGLE))
-        meas = thr_by.get((fam, _MAJ))
-        pred = _invert(ax_cfg["expected"], single)
-        ratio = (meas / pred) if (meas and pred) else None
-        print(f"  {label:<16s}{_s(single, 11)}{_s(meas, 13)}"
-              f"{_s(pred, 13)}{(f'{ratio:.2f}' if ratio else 'n/a'):>12s}")
+        for nm, _lbl, reps in rep_schemes:
+            meas = thr_by.get((fam, nm))
+            pred = _invert(transform_family(reps), single)
+            ratio = (meas / pred) if (meas and pred) else None
+            print(f"  {label:<14s}{reps:>4d}{_s(single, 11)}{_s(meas, 12)}"
+                  f"{_s(pred, 12)}{(f'{ratio:.2f}' if ratio else 'n/a'):>12s}")
     print(f"\nSaved -> {out}")
 
 

@@ -42,33 +42,41 @@ _HYP = str(_ROOT / "out/collection/grid_hyperbolic.csv")
 # Non-repeated baseline is now the single-ancilla 1-rep equivalent (== two-anc).
 _BELL = "biased_bell_v3_equivalent"
 _MAJ = "biased_bell_v3_equivalent_majority"
+_MAJ5 = "biased_bell_v3_equivalent_majority5"
 
-# Professional, distinct hues. Honeycomb = blue/green, hyperbolic = orange/purple
-# (base = darker, majority vote = the paired lighter/greener hue).
-_C_HONEY = "#4e79a7"
-_C_HONEY_MAJ = "#59a14f"
-_C_HYP = "#f28e2b"
-_C_HYP_MAJ = "#b07aa1"
+# Consistent scheme: one hue per code family (honeycomb = Blues, hyperbolic =
+# Oranges, matching the bottom panel), with the *shade* encoding the repetition
+# level and the same gradient direction for both codes -- darker as the number
+# of repetitions increases (1-rep -> 3-rep -> 5-rep).
+_blues = plt.get_cmap("Blues")
+_oranges = plt.get_cmap("Oranges")
+_BND_HONEY = [_blues(0.45), _blues(0.68), _blues(0.92)]     # 1-rep, 3-rep, 5-rep
+_BND_HYP = [_oranges(0.45), _oranges(0.68), _oranges(0.92)]
+_C_HONEY = _BND_HONEY[0]   # base-code accent, reused for the bottom-panel vline
+_C_HYP = _BND_HYP[0]
 
 # (label, csv, scheme, color, marker) for the top boundary panel.
 _BOUNDARIES = [
-    ("Honeycomb code", _HONEY, _BELL, _C_HONEY, "o"),
-    ("Honeycomb + 3-rep. majority vote", _HONEY, _MAJ, _C_HONEY_MAJ, "D"),
-    ("Hyperbolic Floquet code", _HYP, _BELL, _C_HYP, "s"),
-    ("Hyperbolic Floquet + 3-rep. majority vote", _HYP, _MAJ, _C_HYP_MAJ, "v"),
+    ("Honeycomb code", _HONEY, _BELL, _BND_HONEY[0], "o"),
+    ("Honeycomb + 3-rep. majority vote", _HONEY, _MAJ, _BND_HONEY[1], "D"),
+    ("Honeycomb + 5-rep. majority vote", _HONEY, _MAJ5, _BND_HONEY[2], "P"),
+    ("Hyperbolic Floquet code", _HYP, _BELL, _BND_HYP[0], "s"),
+    ("Hyperbolic Floquet + 3-rep. majority vote", _HYP, _MAJ, _BND_HYP[1], "v"),
+    ("Hyperbolic Floquet + 5-rep. majority vote", _HYP, _MAJ5, _BND_HYP[2], "X"),
 ]
 
 # (name, csv, scheme, colormap, threshold-vline color) for the bottom LER panel.
+# The vline uses a darker family shade so it stays visible over the distance curves.
 _CODES = [
-    ("Honeycomb", _HONEY, _BELL, plt.get_cmap("Blues"), _C_HONEY),
-    ("Hyperbolic Floquet", _HYP, _BELL, plt.get_cmap("Oranges"), _C_HYP),
+    ("Honeycomb", _HONEY, _BELL, plt.get_cmap("Blues"), _blues(0.95)),
+    ("Hyperbolic Floquet", _HYP, _BELL, plt.get_cmap("Oranges"), _oranges(0.95)),
 ]
 
 # Individual boundary points with unreliable FSS fits, excluded from panel (a).
 # (family, scheme, p_res) -- matched with a small tolerance. The p_z=0 intercept
 # already pins the corresponding end of the boundary.
 _DROP_BOUNDARY_POINTS = [
-    ("honeycomb", _MAJ, 0.0010715),  # p_z* fit at p_res~0.0011 is a bad, low outlier
+    ("honeycomb", _MAJ, 0.0010715),   # p_z* fit at p_res~0.0011 is a bad, low outlier
 ]
 
 
@@ -148,12 +156,9 @@ def main() -> None:
             continue
         p, pth, err = map(np.array, zip(*thr))
         n_all = len(p)
-        p, pth, err = _monotonic_decreasing(p, pth, err)
-        n_mono = len(p)
 
-        # Extend the boundary to its axis intercepts, computed with the same
-        # estimator (args.method) the checks use: p_z* at p_res=0 on the left,
-        # p_res* at p_z=0 on the right.
+        # Axis intercepts from the checks, computed with the same estimator
+        # (args.method): p_z* at p_res=0 (top) and p_res* at p_z=0 (right).
         pt_pz = pt_pres = None
         if chk_pz is not None:
             r = az._fit(chk_pz[(chk_pz["family"] == fam)
@@ -165,12 +170,17 @@ def main() -> None:
                                  & (chk_pres["noise_model"] == scheme)],
                         "p", scheme, args.method)
             pt_pres = r[0] if r is not None else None
+
+        # Prepend the p_res=0 intercept (the true top of the boundary) *before*
+        # enforcing monotonicity, so grid points that over-fit above it are
+        # dropped. Then append the p_z=0 intercept as the low-p_z endpoint.
         pl, tl, el = list(p), list(pth), list(err)
-        if pt_pz is not None:      # (p_res = 0, p_z*)
+        if pt_pz is not None:
             pl, tl, el = [0.0] + pl, [pt_pz] + tl, [0.0] + el
-        if pt_pres is not None:    # (p_res*, p_z = 0)
-            pl, tl, el = pl + [pt_pres], tl + [0.0], el + [0.0]
-        p, pth, err = np.array(pl), np.array(tl), np.array(el)
+        p, pth, err = _monotonic_decreasing(np.array(pl), np.array(tl), np.array(el))
+        n_mono = len(p)
+        if pt_pres is not None:
+            p = np.append(p, pt_pres); pth = np.append(pth, 0.0); err = np.append(err, 0.0)
 
         ax_top.errorbar(p, pth, yerr=err, fmt=marker + "-", color=color,
                         label=label, markersize=5, linewidth=1.7, capsize=3)

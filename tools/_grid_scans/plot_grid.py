@@ -69,18 +69,21 @@ SCHEME_COLORS = {
     "biased_bell_v3": "#4e79a7",
     "biased_bell_v3_equivalent": "#59a14f",
     "biased_bell_v3_equivalent_majority": "#b07aa1",
+    "biased_bell_v3_equivalent_majority5": "#674ea7",
 }
 SCHEME_LINESTYLES = {
     "biased_bell_v2": ":",
     "biased_bell_v3": "-",
     "biased_bell_v3_equivalent": "-.",
     "biased_bell_v3_equivalent_majority": "--",
+    "biased_bell_v3_equivalent_majority5": (0, (3, 1, 1, 1)),  # dash-dot-dot
 }
 SCHEME_LABELS = {
     "biased_bell_v2": "bell v2",
     "biased_bell_v3": "Honeycomb code",
     "biased_bell_v3_equivalent": "equivalent",
     "biased_bell_v3_equivalent_majority": "Honeycomb with 3 repetitions and majority vote",
+    "biased_bell_v3_equivalent_majority5": "5-rep majority vote",
 }
 
 
@@ -98,6 +101,7 @@ SCHEME_TAGS = {
     "biased_bell_v3": "norepeat",
     "biased_bell_v3_equivalent": "norepeat_equiv",
     "biased_bell_v3_equivalent_majority": "repeat",
+    "biased_bell_v3_equivalent_majority5": "repeat5",
 }
 
 
@@ -242,13 +246,42 @@ def _cutoff_for(df: pd.DataFrame) -> float:
     p_z threshold is large, so the k=10 rate is already sizeable there), so a 0.3
     cutoff would clip points at the crossing; use 0.45 for them, 0.3 otherwise.
     Assumes `df` is a single scheme (fit_pz_threshold is always called per-scheme).
+
     """
     nm = df["noise_model"].dropna()
     return 0.45 if (len(nm) and "equivalent" in str(nm.iloc[0])) else 0.3
 
 
+def _pz_cutoff_for(df: pd.DataFrame) -> float:
+    """Saturation cutoff for the *p_z*-axis FSS fit specifically.
+
+    Same as `_cutoff_for` except for k=1 (honeycomb) 5-rep: there the per-obs
+    rate *is* the raw rate and saturates near 0.5, and the 5-rep p_z crossing
+    (~11%) sits right below the ceiling, so 0.45 strips almost every
+    above-crossing point and the quadratic overshoots. Keeping points up to 0.495
+    anchors the fit to the crossing (~0.112, matching the majority-5 prediction).
+    Scoped to the p_z fit so it never perturbs the p_res-axis fit (whose crossing
+    is nowhere near saturation).
+    """
+    nm = df["noise_model"].dropna()
+    s = str(nm.iloc[0]) if len(nm) else ""
+    if "equivalent" not in s:
+        return 0.3
+    k = df["k"].dropna()
+    if "majority5" in s and len(k) and int(k.iloc[0]) == 1:
+        return 0.495
+    return 0.45
+
+
+def _pz_max_for(df: pd.DataFrame) -> float:
+    """FSS p_z window cap, by scheme: the 5-rep majority threshold sits ~11-13%,
+    above the 0.09 default, so it needs more headroom (others keep 0.09)."""
+    nm = df["noise_model"].dropna()
+    return 0.25 if (len(nm) and "majority5" in str(nm.iloc[0])) else 0.09
+
+
 def fit_pz_threshold(df: pd.DataFrame, p: float, n_per_side: int = 2,
-                     pz_max: float = 0.09, logical_cutoff: float | None = None,
+                     pz_max: float | None = None, logical_cutoff: float | None = None,
                      rate_col: str = "pL", sigma_col: str = "sigma"):
     """Fit p_z threshold at fixed p_res across all distances. None if no fit.
 
@@ -260,7 +293,9 @@ def fit_pz_threshold(df: pd.DataFrame, p: float, n_per_side: int = 2,
     locate isn't seeded by the saturated high-p_z plateau.
     """
     if logical_cutoff is None:
-        logical_cutoff = _cutoff_for(df)
+        logical_cutoff = _pz_cutoff_for(df)
+    if pz_max is None:
+        pz_max = _pz_max_for(df)
     sub = df[np.isclose(df["p"], p) & (df["errors"] > 0) & (df["shots"] > 0)
              & (df["p_bell_z"] <= pz_max) & (df["pL"] < logical_cutoff)]
     if sub["expected_distance"].nunique() < 2:

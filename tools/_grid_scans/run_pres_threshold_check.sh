@@ -61,6 +61,8 @@ P=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np
 NPZ=25
 PZ_BASE=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(1e-3), np.log10(3e-2), $NPZ)))")
 PZ_MAJ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(3e-3), np.log10(1.2e-1), $NPZ)))")
+# 5-rep majority sits even higher (~10-13%), so a wider p_z top.
+PZ_MAJ5=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(5e-3), np.log10(2e-1), $NPZ)))")
 
 # Scale the hyperbolic codes to 3d rounds once (honeycomb is used as-is, exactly
 # like the grid runs, so the intercepts line up with the boundary curves).
@@ -74,7 +76,7 @@ uv run python tools/_grid_scans/scale_rounds.py \
 
 # One combo: generate circuits over a single scan line, then decode/resume.
 #   $1=label  $2=preamble(CSV)  $3=input-glob  $4=output-dir  $5..=make_grid args
-COMBO_N=8           # total run_combo calls (4 per scan x 2 scans), for progress
+COMBO_N=12          # total run_combo calls (6 per scan x 2 scans), for progress
 COMBO_I=0
 run_combo() {
   COMBO_I=$((COMBO_I + 1))
@@ -97,19 +99,23 @@ echo
 echo "############################################################"
 echo "# Scan A: p_z = 0, scan p_res  -> pres_check.csv"
 echo "############################################################"
-run_combo "honeycomb 1-rep"     pres_check "$HONEY_GLOB"        out/circuits/pres_check_honeycomb_single    --scheme equivalent_v3          --p-values $P --p-bell-z-values 0.0
-run_combo "honeycomb majority"  pres_check "$HONEY_GLOB"        out/circuits/pres_check_honeycomb_majority  --scheme equivalent_v3_majority --p-values $P --p-bell-z-values 0.0
-run_combo "hyperbolic 1-rep"    pres_check "$HYP_SCALED/*.stim" out/circuits/pres_check_hyperbolic_single   --scheme equivalent_v3          --p-values $P --p-bell-z-values 0.0
-run_combo "hyperbolic majority" pres_check "$HYP_SCALED/*.stim" out/circuits/pres_check_hyperbolic_majority --scheme equivalent_v3_majority --p-values $P --p-bell-z-values 0.0
+run_combo "honeycomb 1-rep"      pres_check "$HONEY_GLOB"        out/circuits/pres_check_honeycomb_single     --scheme equivalent_v3           --p-values $P --p-bell-z-values 0.0
+run_combo "honeycomb majority"   pres_check "$HONEY_GLOB"        out/circuits/pres_check_honeycomb_majority   --scheme equivalent_v3_majority  --p-values $P --p-bell-z-values 0.0
+run_combo "honeycomb majority5"  pres_check "$HONEY_GLOB"        out/circuits/pres_check_honeycomb_majority5  --scheme equivalent_v3_majority5 --p-values $P --p-bell-z-values 0.0
+run_combo "hyperbolic 1-rep"     pres_check "$HYP_SCALED/*.stim" out/circuits/pres_check_hyperbolic_single    --scheme equivalent_v3           --p-values $P --p-bell-z-values 0.0
+run_combo "hyperbolic majority"  pres_check "$HYP_SCALED/*.stim" out/circuits/pres_check_hyperbolic_majority  --scheme equivalent_v3_majority  --p-values $P --p-bell-z-values 0.0
+run_combo "hyperbolic majority5" pres_check "$HYP_SCALED/*.stim" out/circuits/pres_check_hyperbolic_majority5 --scheme equivalent_v3_majority5 --p-values $P --p-bell-z-values 0.0
 
 echo
 echo "############################################################"
 echo "# Scan B: p_res = 0, scan p_z  -> pz_check.csv"
 echo "############################################################"
-run_combo "honeycomb 1-rep"     pz_check "$HONEY_GLOB"        out/circuits/pz_check_honeycomb_single    --scheme equivalent_v3          --p-values $P_FLOOR --p-bell-z-values $PZ_BASE
-run_combo "honeycomb majority"  pz_check "$HONEY_GLOB"        out/circuits/pz_check_honeycomb_majority  --scheme equivalent_v3_majority --p-values $P_FLOOR --p-bell-z-values $PZ_MAJ
-run_combo "hyperbolic 1-rep"    pz_check "$HYP_SCALED/*.stim" out/circuits/pz_check_hyperbolic_single   --scheme equivalent_v3          --p-values $P_FLOOR --p-bell-z-values $PZ_BASE
-run_combo "hyperbolic majority" pz_check "$HYP_SCALED/*.stim" out/circuits/pz_check_hyperbolic_majority --scheme equivalent_v3_majority --p-values $P_FLOOR --p-bell-z-values $PZ_MAJ
+run_combo "honeycomb 1-rep"      pz_check "$HONEY_GLOB"        out/circuits/pz_check_honeycomb_single     --scheme equivalent_v3           --p-values $P_FLOOR --p-bell-z-values $PZ_BASE
+run_combo "honeycomb majority"   pz_check "$HONEY_GLOB"        out/circuits/pz_check_honeycomb_majority   --scheme equivalent_v3_majority  --p-values $P_FLOOR --p-bell-z-values $PZ_MAJ
+run_combo "honeycomb majority5"  pz_check "$HONEY_GLOB"        out/circuits/pz_check_honeycomb_majority5  --scheme equivalent_v3_majority5 --p-values $P_FLOOR --p-bell-z-values $PZ_MAJ5
+run_combo "hyperbolic 1-rep"     pz_check "$HYP_SCALED/*.stim" out/circuits/pz_check_hyperbolic_single    --scheme equivalent_v3           --p-values $P_FLOOR --p-bell-z-values $PZ_BASE
+run_combo "hyperbolic majority"  pz_check "$HYP_SCALED/*.stim" out/circuits/pz_check_hyperbolic_majority  --scheme equivalent_v3_majority  --p-values $P_FLOOR --p-bell-z-values $PZ_MAJ
+run_combo "hyperbolic majority5" pz_check "$HYP_SCALED/*.stim" out/circuits/pz_check_hyperbolic_majority5 --scheme equivalent_v3_majority5 --p-values $P_FLOOR --p-bell-z-values $PZ_MAJ5
 
 echo
 echo "############################################################"

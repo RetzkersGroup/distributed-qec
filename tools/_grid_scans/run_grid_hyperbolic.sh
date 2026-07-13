@@ -40,7 +40,12 @@ case "${2:-base}" in
     OUTPUT_DIR="out/circuits/grid_hyperbolic_majority"
     SCHEME_ARGS="--scheme equivalent_v3_majority"
     PZ_HI=1e-1 ;;
-  *) echo "unknown scheme: ${2} (use base|majority)" >&2; exit 1 ;;
+  majority5)
+    # 5-rep majority vote: even higher p_z threshold, so a higher p_z ceiling.
+    OUTPUT_DIR="out/circuits/grid_hyperbolic_majority5"
+    SCHEME_ARGS="--scheme equivalent_v3_majority5"
+    PZ_HI=2e-1 ;;
+  *) echo "unknown scheme: ${2} (use base|majority|majority5)" >&2; exit 1 ;;
 esac
 
 INPUT_GLOB="in/circuits/hyperbolic_floquet/8.8.8/**/$DIST_GLOB"

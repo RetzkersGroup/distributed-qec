@@ -34,8 +34,15 @@ case "$SCHEME" in
     SCHEME_ARGS="--scheme equivalent_v3_majority"
     NP=25; NPZ=25; P_HI=2e-3; PZ_HI=1e-1
     ;;
+  majority5)
+    # 5-repetition majority vote: lifts the p_z threshold even higher (~10-13%),
+    # so it needs a higher p_z ceiling than the 3-rep run.
+    OUTPUT_DIR="out/circuits/grid_bell_majority5"
+    SCHEME_ARGS="--scheme equivalent_v3_majority5"
+    NP=25; NPZ=25; P_HI=2e-3; PZ_HI=2e-1
+    ;;
   *)
-    echo "unknown scheme: $SCHEME (use 'bell' or 'majority')" >&2; exit 1 ;;
+    echo "unknown scheme: $SCHEME (use bell|majority|majority5)" >&2; exit 1 ;;
 esac
 
 P=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-4, np.log10($P_HI), $NP)))")
