@@ -29,10 +29,10 @@ a2 +d2
 a3 +d3
 a4 +d4
 
-a1 G {\scriptsize D1} fill=lightgray d1 G {\scriptsize D1} fill=lightgray
+a1 G {\scriptsize D2} fill=lightgray d1 G {\scriptsize D2} fill=lightgray
 a2 G {\scriptsize D2} fill=lightgray d2 G {\scriptsize D2} fill=lightgray
-a3 G {\scriptsize D3} fill=lightgray d3 G {\scriptsize D3} fill=lightgray
-a4 G {\scriptsize D4} fill=lightgray d4 G {\scriptsize D4} fill=lightgray
+a3 G {\scriptsize D2} fill=lightgray d3 G {\scriptsize D2} fill=lightgray
+a4 G {\scriptsize D2} fill=lightgray d4 G {\scriptsize D2} fill=lightgray
 
 # Measure all ancillas in the X basis.
 a1 M $X$
