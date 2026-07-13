@@ -169,7 +169,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--scheme", default="bell",
-        choices=["bell", "equivalent_v3", "equivalent_v3_majority"],
+        choices=["bell", "equivalent_v3", "equivalent_v3_majority", "equivalent_v3_majority5"],
         dest="scheme",
         help="Translation scheme (default: bell = two-ancilla Bell pair).",
     )
