@@ -49,6 +49,21 @@ def get_json_metadata(circuit_file: str) -> dict:
     return {}
 
 
+def _write_sinter_csv(path: pathlib.Path, stats) -> None:
+    """Persist sinter TaskStats in sinter's own CSV format (JSON metadata).
+
+    sinter only writes CSVs transiently (save_resume_filepath, deleted on clean
+    completion), so we serialize the returned stats ourselves using sinter's
+    CSV_HEADER + TaskStats.to_csv_line(). The resulting file is what
+    `--resume` reads back via existing_data_filepaths.
+    """
+    with open(path, "w") as f:
+        f.write(sinter.CSV_HEADER + "\n")
+        for s in stats:
+            line = s.to_csv_line()
+            f.write(line if line.endswith("\n") else line + "\n")
+
+
 def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
     """Return custom decoder dict if needed, None for built-in decoders."""
     if decoder_name in ("pymatching", "fusion_blossom"):
@@ -72,11 +87,17 @@ def run_decode(
     cores: int | None = None,
     print_progress: bool = False,
     comment: str = "",
+    resume: bool = False,
 ) -> pathlib.Path:
-    """Collect decoding statistics for `circuit_files` and append to a CSV.
+    """Collect decoding statistics for `circuit_files` and write a CSV.
 
     Shared by the generic CLI and the per-model wrappers (e.g.
     tools/equivalent/decode.py). Returns the output CSV path.
+
+    Default (append) mode writes a dated pandas CSV `{preamble},{date}.csv`.
+    With ``resume=True`` it instead maintains a single sinter-format CSV
+    `{preamble}.csv`: prior results in it are counted toward max_shots/max_errors
+    (sinter's existing_data_filepaths), so a re-run only samples the shortfall.
     """
     if cores is None:
         cores = cpu_count()
@@ -114,8 +135,11 @@ def run_decode(
             json_metadata=metadata,
         ))
 
+    out_dir = _ROOT / "out" / "collection"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     custom_decoders = get_custom_decoders(decoder)
-    samples = sinter.collect(
+    collect_kwargs = dict(
         num_workers=cores,
         max_shots=max_shots,
         max_errors=max_errors,
@@ -125,14 +149,22 @@ def run_decode(
         print_progress=print_progress,
     )
 
-    out_dir = _ROOT / "out" / "collection"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    today_str = date.today().strftime("%Y-%m-%d")
-    outfile = out_dir / f"{output_preamble},{today_str}.csv"
-
-    df = pd.DataFrame([vars(stat) for stat in samples])
-    file_exists = outfile.is_file()
-    df.to_csv(outfile, mode="a", header=not file_exists, index=False)
+    if resume:
+        # Single canonical sinter-format CSV; sinter counts its existing rows
+        # toward the budget and we write the merged result back.
+        outfile = out_dir / f"{output_preamble}.csv"
+        if outfile.is_file():
+            collect_kwargs["existing_data_filepaths"] = [str(outfile)]
+            logging.info(f"Resume: counting existing results in {outfile}")
+        samples = sinter.collect(**collect_kwargs)
+        _write_sinter_csv(outfile, samples)
+    else:
+        today_str = date.today().strftime("%Y-%m-%d")
+        outfile = out_dir / f"{output_preamble},{today_str}.csv"
+        samples = sinter.collect(**collect_kwargs)
+        df = pd.DataFrame([vars(stat) for stat in samples])
+        file_exists = outfile.is_file()
+        df.to_csv(outfile, mode="a", header=not file_exists, index=False)
 
     elapsed = time.time() - start_time
     logging.info(f"Finished. Results saved to {outfile}")
@@ -155,6 +187,10 @@ def add_decode_args(parser: argparse.ArgumentParser) -> None:
                         help="Show sinter progress during collection.")
     parser.add_argument("--comment", type=str, default="",
                         help="Extra comment stored in metadata.")
+    parser.add_argument("--resume", action="store_true",
+                        help="Maintain a single sinter-format {preamble}.csv and "
+                             "resume from it (count existing shots/errors toward "
+                             "the budget) instead of appending a dated pandas CSV.")
 
 
 def main() -> None:
@@ -180,6 +216,7 @@ def main() -> None:
         cores=args.cores,
         print_progress=args.print_progress,
         comment=args.comment,
+        resume=args.resume,
     )
 
 
