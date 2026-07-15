@@ -42,15 +42,17 @@ if str(_ROOT / "src") not in sys.path:
 
 import equivalent_noise_calculator as e  # noqa: E402
 
-_C_TWO = "#4e79a7"   # two-ancilla Bell
-_C_ONE = "#59a14f"   # 1-rep equivalent
+_C_TWO = "#4e79a7"    # two-ancilla Bell
+_C_ONE = "#59a14f"    # 1-rep equivalent
 _C_THREE = "#e15759"  # 3-rep majority vote
+_C_FIVE = "#674ea7"   # 5-rep majority vote
 
-# (label, function, color) -- the three base models.
+# (label, function, color) -- the base models.
 _MODELS = [
     ("two-anc", e.get_two_anc_noise_operations, _C_TWO),
     ("1-rep", e.get_equivalent_noise_operations_single, _C_ONE),
     ("3-rep", e.get_equivalent_noise_operations, _C_THREE),
+    ("5-rep", lambda pe, pz: e.get_equivalent_noise_operations(pe, pz, 5), _C_FIVE),
 ]
 
 
@@ -116,12 +118,15 @@ def main() -> None:
             y = probs[name].get(pat)
             if y is not None:
                 ax.plot(ps, _mask(y), color=color, linewidth=1.9, label=name)
-        # x3 additive-expectation overlays for the two single-round models.
-        for name, color in (("1-rep", _C_ONE), ("two-anc", _C_TWO)):
-            y = probs[name].get(pat)
-            if y is not None:
-                ax.plot(ps, _mask(3.0 * y), color=color, linestyle=":",
-                        linewidth=1.5, label=f"{name} x3")
+        # Additive-expectation overlays: 1-rep scaled by the repetition count,
+        # to compare against the 3-rep / 5-rep curves (data errors ~ x R; the
+        # measurement flip {M} falls far below, thanks to majority voting).
+        y1 = probs["1-rep"].get(pat)
+        if y1 is not None:
+            ax.plot(ps, _mask(3.0 * y1), color=_C_THREE, linestyle=":",
+                    linewidth=1.4, label="1-rep x3")
+            ax.plot(ps, _mask(5.0 * y1), color=_C_FIVE, linestyle=":",
+                    linewidth=1.4, label="1-rep x5")
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_ylim(bottom=ymin)
@@ -138,8 +143,9 @@ def main() -> None:
     handles = [Line2D([0], [0], color=_C_TWO, lw=2, label="two-anc"),
                Line2D([0], [0], color=_C_ONE, lw=2, label="1-rep"),
                Line2D([0], [0], color=_C_THREE, lw=2, label="3-rep"),
-               Line2D([0], [0], color=_C_ONE, lw=1.5, ls=":", label="1-rep x3"),
-               Line2D([0], [0], color=_C_TWO, lw=1.5, ls=":", label="two-anc x3")]
+               Line2D([0], [0], color=_C_FIVE, lw=2, label="5-rep"),
+               Line2D([0], [0], color=_C_THREE, lw=1.4, ls=":", label="1-rep x3"),
+               Line2D([0], [0], color=_C_FIVE, lw=1.4, ls=":", label="1-rep x5")]
     # Park the legend in the empty tail of the grid (unused bottom-row panels)
     # if there is room, else above the figure.
     if n < nrow * ncol:

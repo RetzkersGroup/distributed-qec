@@ -67,15 +67,17 @@ def _reference_circuit(
     trailing MXX/MZZ readouts define the logical-Pauli detectors D(R)..D(R+3).
     R=1 gives a single, un-voted measurement.
 
-    Each repeat uses a fresh ancilla pair (2+2i, 3+2i); with data partners at
-    10,11 this stays collision-free for num_repeats <= 4 (only 1 and 3 are used).
+    Each repeat uses a fresh ancilla pair (20+2i, 21+2i); the high base keeps
+    them clear of the data qubits (0,1) and their partners (10,11) for any
+    reasonable num_repeats (used: 1, 3, 5). Relabeling the ancilla indices does
+    not change the DEM (it is keyed by detector ids), so R=1/R=3 are unchanged.
     """
-    if not 1 <= num_repeats <= 4:
-        raise ValueError(f"num_repeats must be in 1..4, got {num_repeats}")
+    if not 1 <= num_repeats <= 11:
+        raise ValueError(f"num_repeats must be in 1..11, got {num_repeats}")
     blocks = []
-    # Repeated syndrome blocks on fresh ancilla pairs (2,3), (4,5), ...
+    # Repeated syndrome blocks on fresh ancilla pairs (20,21), (22,23), ...
     for i in range(num_repeats):
-        anc_x, anc_z = 2 + 2 * i, 3 + 2 * i
+        anc_x, anc_z = 20 + 2 * i, 21 + 2 * i
         blocks.append(f"""
 RX {anc_x}
 R {anc_z}
@@ -164,12 +166,20 @@ def get_equivalent_noise_operations(
     """
     raw = _raw_mechanisms(_reference_circuit(p_e, p_bell_z, num_repeats))
 
-    # First-order expansion: every single mechanism + every pair (p1 * p2).
+    # Expand over independent combinations of raw mechanisms up to the majority
+    # order: flipping a majority (R//2+1 of R) of the syndrome detectors takes
+    # that many independent single-round errors -- pairs for R<=3, triples for
+    # R=5, etc. Kept at >=2 so the R=1 and R=3 blocks are byte-identical to before.
+    max_order = max(2, num_repeats // 2 + 1)
     agg: dict[frozenset, float] = collections.defaultdict(float)
-    for p, dets in raw:
-        agg[_to_equivalent(dets, num_repeats)] += p
-    for (p1, d1), (p2, d2) in combinations(raw, 2):
-        agg[_to_equivalent(d1 ^ d2, num_repeats)] += p1 * p2
+    for order in range(1, max_order + 1):
+        for combo in combinations(raw, order):
+            prob = 1.0
+            dets = frozenset()
+            for pj, dj in combo:
+                prob *= pj
+                dets = dets ^ dj
+            agg[_to_equivalent(dets, num_repeats)] += prob
 
     if num_repeats == 1:
         # A single, unrepeated measurement error flips only the lone syndrome

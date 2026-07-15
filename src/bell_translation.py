@@ -33,7 +33,8 @@ PAIRWISE_MEASUREMENT_NAMES = {"MPP", "MXX", "MZZ", "MYY"}
 # schemes use a single ancilla and replace the Bell-prep physics with a
 # correlated `E(...)` noise block that is noise-equivalent to it.
 _BELL_SCHEME = "bell"
-_EQUIVALENT_SCHEMES = {"equivalent_v3", "equivalent_v3_majority"}
+_EQUIVALENT_SCHEMES = {"equivalent_v3", "equivalent_v3_majority",
+                       "equivalent_v3_majority5"}
 
 # Single-qubit measurements supported in the input. Z-basis variants get
 # X_ERROR semantics (handled via the (p) argument); X-basis variants get
@@ -423,7 +424,9 @@ def _equiv_mechanisms_for(noise: NoiseParams) -> list:
     if noise.scheme == "equivalent_v3":
         return get_equivalent_noise_operations_single(noise.p_e, noise.p_bell_z)
     if noise.scheme == "equivalent_v3_majority":
-        return get_equivalent_noise_operations(noise.p_e, noise.p_bell_z)
+        return get_equivalent_noise_operations(noise.p_e, noise.p_bell_z, num_repeats=3)
+    if noise.scheme == "equivalent_v3_majority5":
+        return get_equivalent_noise_operations(noise.p_e, noise.p_bell_z, num_repeats=5)
     raise AssertionError(noise.scheme)
 
 

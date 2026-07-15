@@ -99,6 +99,8 @@ def _model_name(mzz_gadget: str, scheme: str) -> str:
         return "biased_bell_v3_equivalent"
     if scheme == "equivalent_v3_majority":
         return "biased_bell_v3_equivalent_majority"
+    if scheme == "equivalent_v3_majority5":
+        return "biased_bell_v3_equivalent_majority5"
     return "biased_bell_v2" if mzz_gadget == "v2" else "biased_bell_v3"
 
 
@@ -234,7 +236,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--scheme", default="bell",
-        choices=["bell", "equivalent_v3", "equivalent_v3_majority"],
+        choices=["bell", "equivalent_v3", "equivalent_v3_majority", "equivalent_v3_majority5"],
         dest="scheme",
         help="Translation scheme (default: bell = two-ancilla Bell pair). "
              "'equivalent_v3' uses the single-ancilla XCX gadget with the "
