@@ -15,7 +15,7 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
-uv run python tools/_grid_scans/plot_grid.py \
+python tools/_grid_scans/plot_grid.py \
   --csv out/collection/grid_stairway.csv \
   --prefix grid_stairway \
   --code-label "Stairway 2BGA" \

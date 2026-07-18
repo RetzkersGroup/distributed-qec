@@ -32,7 +32,7 @@ case "$SCHEME" in
 esac
 
 echo "=== Decode '$SCHEME' (resume) -> out/collection/${PREAMBLE}.csv ==="
-uv run python tools/decode.py \
+python tools/decode.py \
   --circuit-files "$OUTPUT_DIR"/*.stim \
   --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
   --decoder tesseract_short \

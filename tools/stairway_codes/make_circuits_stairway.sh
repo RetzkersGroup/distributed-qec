@@ -47,11 +47,11 @@ case "$SCHEME" in
     echo "unknown scheme: $SCHEME (use bell|majority|majority5)" >&2; exit 1 ;;
 esac
 
-PZ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10($PZ_LO), np.log10($PZ_HI), $NPZ)))")
+PZ=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10($PZ_LO), np.log10($PZ_HI), $NPZ)))")
 
 echo "=== Generate '$SCHEME' stairway slice circuits (p_res=$P_RES x ${NPZ} p_z) ==="
 echo "p_z grid: $PZ"
-uv run python tools/_grid_scans/make_grid_circuits_bell.py \
+python tools/_grid_scans/make_grid_circuits_bell.py \
   --input "$INPUT_GLOB" \
   --output-dir "$OUTPUT_DIR" \
   $SCHEME_ARGS \
