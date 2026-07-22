@@ -55,21 +55,21 @@ P_FLOOR=1e-6
 
 # Scan A axis: p_res log grid (brackets base ~2-3e-3, majority ~1-2e-3).
 NP=25
-P=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(1e-4), np.log10(5e-3), $NP)))")
+P=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(1e-4), np.log10(5e-3), $NP)))")
 # Scan B axis: p_z log grids. Base thresholds ~1.5%, majority ~7%, so the two
 # schemes get different tops (as in the (p_res, p_z) grid runs).
 NPZ=25
-PZ_BASE=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(1e-3), np.log10(3e-2), $NPZ)))")
-PZ_MAJ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(3e-3), np.log10(1.2e-1), $NPZ)))")
+PZ_BASE=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(1e-3), np.log10(3e-2), $NPZ)))")
+PZ_MAJ=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(3e-3), np.log10(1.2e-1), $NPZ)))")
 # 5-rep majority sits even higher (~10-13%), so a wider p_z top.
-PZ_MAJ5=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(5e-3), np.log10(2e-1), $NPZ)))")
+PZ_MAJ5=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10(5e-3), np.log10(2e-1), $NPZ)))")
 
 # Scale the hyperbolic codes to 3d rounds once (honeycomb is used as-is, exactly
 # like the grid runs, so the intercepts line up with the boundary curves).
 HYP_SCALED="out/circuits/pres_check_hyperbolic_3d_inputs"
 echo "=== Stage 0: rescale hyperbolic codes to ${ROUNDS_MULTIPLE}d rounds ==="
 rm -rf "$HYP_SCALED"
-uv run python tools/_grid_scans/scale_rounds.py \
+python tools/_grid_scans/scale_rounds.py \
   --input "$HYP_GLOB" \
   --output-dir "$HYP_SCALED" \
   --rounds-multiple "$ROUNDS_MULTIPLE"
@@ -85,10 +85,10 @@ run_combo() {
   echo
   echo "=== $tag generate circuits ($(date +%H:%M:%S)) ==="
   rm -rf "$outdir"
-  uv run python tools/_grid_scans/make_grid_circuits_bell.py \
+  python tools/_grid_scans/make_grid_circuits_bell.py \
     --input "$input" --output-dir "$outdir" "$@"
   echo "=== $tag decode (resume, live sinter progress) ($(date +%H:%M:%S)) ==="
-  uv run python tools/decode.py \
+  python tools/decode.py \
     --circuit-files "$outdir"/*.stim \
     --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
     --print-progress \
@@ -121,8 +121,8 @@ echo
 echo "############################################################"
 echo "# Analyze: fit the threshold along each scan's axis"
 echo "############################################################"
-uv run python tools/_grid_scans/analyze_axis_threshold.py --csv out/collection/pres_check.csv
-uv run python tools/_grid_scans/analyze_axis_threshold.py --csv out/collection/pz_check.csv
+python tools/_grid_scans/analyze_axis_threshold.py --csv out/collection/pres_check.csv
+python tools/_grid_scans/analyze_axis_threshold.py --csv out/collection/pz_check.csv
 
 echo
 echo "Done."

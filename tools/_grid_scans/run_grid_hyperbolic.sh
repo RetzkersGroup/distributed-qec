@@ -13,7 +13,7 @@ set -e
 # base (biased_bell_v3) and majority (equivalent_v3_majority = 3 repeated syndrome
 # measurements + majority vote) both write to grid_hyperbolic.csv, distinguished
 # by noise_model -- like the honeycomb bell + majority share grid_bell.csv.
-# Uses `uv run` so it works standalone.
+# Uses plain `python` — run from an environment with the project installed.
 
 cd "$(dirname "$0")/../.."
 
@@ -57,19 +57,19 @@ MAX_ERRORS=5000
 
 # p_res 1e-4..1e-2, 25x25; p_z 1e-3..PZ_HI (per-scheme, set above).
 NP=25; NPZ=25; P_HI=1e-2
-P=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-4, np.log10($P_HI), $NP)))")
-PZ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-3, np.log10($PZ_HI), $NPZ)))")
+P=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-4, np.log10($P_HI), $NP)))")
+PZ=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-3, np.log10($PZ_HI), $NPZ)))")
 
 echo "=== Stage 0: rescale each code to ${ROUNDS_MULTIPLE}d rounds ==="
 rm -rf "$SCALED_DIR"          # avoid stale distances from a previous run
-uv run python tools/_grid_scans/scale_rounds.py \
+python tools/_grid_scans/scale_rounds.py \
   --input "$INPUT_GLOB" \
   --output-dir "$SCALED_DIR" \
   --rounds-multiple "$ROUNDS_MULTIPLE"
 
 echo "=== Stage 1: generate hyperbolic grid circuits ==="
 rm -rf "$OUTPUT_DIR"          # clean slate so the decode glob never mixes runs
-uv run python tools/_grid_scans/make_grid_circuits_bell.py \
+python tools/_grid_scans/make_grid_circuits_bell.py \
   --input "$SCALED_DIR/*.stim" \
   --output-dir "$OUTPUT_DIR" \
   $SCHEME_ARGS \
@@ -77,7 +77,7 @@ uv run python tools/_grid_scans/make_grid_circuits_bell.py \
   --p-bell-z-values $PZ
 
 echo "=== Stage 2: decode (resume) -> out/collection/${PREAMBLE}.csv ==="
-uv run python tools/decode.py \
+python tools/decode.py \
   --circuit-files "$OUTPUT_DIR"/*.stim \
   --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
   --print-progress \

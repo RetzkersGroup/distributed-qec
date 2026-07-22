@@ -38,15 +38,15 @@ echo "############################################################"
 echo "# 4. Plot"
 echo "############################################################"
 # Per-code figures (boundary + LER + debug):
-uv run python tools/_grid_scans/plot_grid.py \
+python tools/_grid_scans/plot_grid.py \
   --csv "out/collection/grid_bell.csv" --prefix grid_bell
-uv run python tools/_grid_scans/plot_grid.py \
+python tools/_grid_scans/plot_grid.py \
   --csv "out/collection/grid_hyperbolic.csv" --prefix grid_hyperbolic \
   --code-label "Hyperbolic Floquet code" \
   --majority-label "Hyperbolic Floquet + 3-rep. majority vote"
 # Combined figures (honeycomb base + majority vs hyperbolic):
-uv run python tools/_grid_scans/plot_grid_summary.py
-uv run python tools/_grid_scans/plot_grid_boundary.py \
+python tools/_grid_scans/plot_grid_summary.py
+python tools/_grid_scans/plot_grid_boundary.py \
   --source "Honeycomb code=out/collection/grid_bell.csv" \
   --source "Hyperbolic Floquet code=out/collection/grid_hyperbolic.csv"
 

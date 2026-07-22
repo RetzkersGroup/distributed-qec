@@ -29,7 +29,7 @@ for f in sorted(os.listdir(dir_path)):
         "rounds": r,
         "observable": params["obs"],
         "sheared": params["sheared"] == "True",
-        "expected_distance": w,
+        "expected_distance": min(w//2, h//3),
         "k": c.num_observables,
         "num_qubits": c.num_qubits,
         "num_measurements": c.num_measurements,

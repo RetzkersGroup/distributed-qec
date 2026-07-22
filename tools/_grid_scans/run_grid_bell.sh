@@ -8,8 +8,9 @@ set -e
 #   bash tools/_grid_scans/run_grid_bell.sh            # default: two-ancilla bell scheme
 #   bash tools/_grid_scans/run_grid_bell.sh majority   # repeated-measurement (majority vote)
 #
-# Uses `uv run` so it works standalone. Each scheme writes its circuits to its
-# own directory (so the decode glob never crosses schemes) but shares the CSV.
+# Uses plain `python` — run from an environment with the project installed
+# (e.g. an activated venv). Each scheme writes its circuits to its own
+# directory (so the decode glob never crosses schemes) but shares the CSV.
 
 cd "$(dirname "$0")/../.."
 
@@ -45,12 +46,12 @@ case "$SCHEME" in
     echo "unknown scheme: $SCHEME (use bell|majority|majority5)" >&2; exit 1 ;;
 esac
 
-P=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-4, np.log10($P_HI), $NP)))")
-PZ=$(uv run python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-3, np.log10($PZ_HI), $NPZ)))")
+P=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-4, np.log10($P_HI), $NP)))")
+PZ=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-3, np.log10($PZ_HI), $NPZ)))")
 
 echo "=== Stage 1: generate '$SCHEME' grid circuits (${NP} p x ${NPZ} p_z) ==="
 echo "p_z grid: $PZ"
-uv run python tools/_grid_scans/make_grid_circuits_bell.py \
+python tools/_grid_scans/make_grid_circuits_bell.py \
   --input "$INPUT_GLOB" \
   --output-dir "$OUTPUT_DIR" \
   $SCHEME_ARGS \
@@ -59,7 +60,7 @@ uv run python tools/_grid_scans/make_grid_circuits_bell.py \
   --skip-existing
 
 echo "=== Stage 2: decode (resume) -> out/collection/${PREAMBLE}.csv ==="
-uv run python tools/decode.py \
+python tools/decode.py \
   --circuit-files "$OUTPUT_DIR"/*.stim \
   --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
   --print-progress \
