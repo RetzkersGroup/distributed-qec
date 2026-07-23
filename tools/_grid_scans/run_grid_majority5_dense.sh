@@ -10,8 +10,9 @@ set -e
 # at p_res=1e-4 -- see notebooks/fit_debug.ipynb). This script ADDS p_z points
 # inside the crossing band only, at the SAME p_res values as the existing scan
 # (so the new points land on the existing LER panels), then tops up the shared
-# CSVs via decode --resume. Nothing is deleted; re-running only samples the
-# shortfall.
+# CSVs via decode --resume. Also densifies the p_res=0 intercept scan
+# (pz_check.csv, cf. run_pres_threshold_check.sh Scan B) through the same band.
+# Nothing is deleted; re-running only samples the shortfall.
 #
 #   bash tools/_grid_scans/run_grid_majority5_dense.sh          # hyperbolic test set (d=2,4,6)
 #   bash tools/_grid_scans/run_grid_majority5_dense.sh full     # hyperbolic full set (d=2..12)
@@ -20,8 +21,8 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
-MAX_SHOTS=100000
-MAX_ERRORS=500
+MAX_SHOTS=1000000
+MAX_ERRORS=5000
 
 # Crossing band to densify (5-rep crossings sit at p_z ~ 0.09-0.18 for both
 # codes) and subdivision: each existing grid gap inside the band is split into
@@ -109,6 +110,60 @@ python tools/decode.py \
   --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
   --print-progress \
   --output-preamble grid_hyperbolic --resume
+
+# ── p_res = 0 intercept (pz_check) ───────────────────────────────────────────
+# The pure-p_z intercept scan (run_pres_threshold_check.sh Scan B) has the same
+# sparsity problem through the majority5 crossing, so densify it too. Mirrors
+# the check exactly: p_res pinned to its P_FLOOR (1e-6, not 0 -- exact 0 breaks
+# the matching graph), dense points computed from ITS majority5 p_z grid
+# (logspace 5e-3..0.2), decoded into pz_check.csv. New circuit dirs (the check
+# script rm -rf's its own dirs on re-run; these must survive that).
+P_FLOOR=1e-6
+PZ_CHECK_DENSE=$(python -c "
+import numpy as np
+grid = np.logspace(np.log10(5e-3), np.log10(0.2), 25)
+out = []
+for lo, hi in zip(grid[:-1], grid[1:]):
+    if lo < $PZ_BAND_LO or hi > $PZ_BAND_HI * 1.0001:
+        continue
+    out.extend(np.geomspace(lo, hi, $N_SUB + 1)[1:-1])
+print(' '.join(f'{x:.10g}' for x in out))
+")
+echo
+echo "dense pz_check values: $PZ_CHECK_DENSE"
+
+echo "=== Honeycomb majority5 intercept: generate dense-band circuits ==="
+python tools/_grid_scans/make_grid_circuits_bell.py \
+  --input "$HONEY_INPUT" \
+  --output-dir "out/circuits/pz_check_honeycomb_majority5_dense" \
+  --scheme equivalent_v3_majority5 \
+  --p-values $P_FLOOR \
+  --p-bell-z-values $PZ_CHECK_DENSE \
+  --skip-existing
+
+echo "=== Honeycomb majority5 intercept: decode (resume) -> out/collection/pz_check.csv ==="
+python tools/decode.py \
+  --circuit-files out/circuits/pz_check_honeycomb_majority5_dense/*.stim \
+  --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
+  --print-progress \
+  --output-preamble pz_check --resume
+
+echo "=== Hyperbolic majority5 intercept: generate dense-band circuits ==="
+# Reuses $SCALED_DIR (same 3d-rounds rescale as the check's own stage 0).
+python tools/_grid_scans/make_grid_circuits_bell.py \
+  --input "$SCALED_DIR/*.stim" \
+  --output-dir "out/circuits/pz_check_hyperbolic_majority5_dense" \
+  --scheme equivalent_v3_majority5 \
+  --p-values $P_FLOOR \
+  --p-bell-z-values $PZ_CHECK_DENSE \
+  --skip-existing
+
+echo "=== Hyperbolic majority5 intercept: decode (resume) -> out/collection/pz_check.csv ==="
+python tools/decode.py \
+  --circuit-files out/circuits/pz_check_hyperbolic_majority5_dense/*.stim \
+  --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
+  --print-progress \
+  --output-preamble pz_check --resume
 
 echo
 echo "Done. Re-run the plot stage (tools/run_grid_all.sh) to refit with the dense band."
