@@ -15,7 +15,7 @@ crossing, and draw:
   grid_bell_threshold_pz_vs_p.png  fitted p_z threshold vs p_res (2D boundary), per scheme
   grid_bell_ler_vs_pz.png          LER vs p_z at one shared p_res (per d, per scheme)
   grid_bell_paper_figure.pdf       stacked: (a) boundary on top, (b) LER below
-  grid_bell_ler_debug/*.png        the LER panel, one figure per sampled p_res (debug)
+  grid_bell_ler_grid_<scheme>.png  one big grid per scheme: every p_res panel (debug)
 
 Loads sinter-format CSVs (JSON metadata; legacy pandas repr also handled) and
 reuses src/threshold_fit.py (the same locate -> quadratic-FSS estimator) fitting
@@ -320,8 +320,53 @@ def fit_pz_threshold(df: pd.DataFrame, p: float, n_per_side: int = 2,
     return fit
 
 
+def fit_pz_threshold_raw(df: pd.DataFrame, p: float, n_per_side: int = 2,
+                         logical_cutoff: float = 0.35,
+                         rate_col: str = "pL", sigma_col: str = "sigma"):
+    """Raw p_z-axis fit at fixed p_res: src/threshold_fit.py, minimal wrappers.
+
+    Like `fit_pz_threshold` but with a single conservative saturation cutoff
+    (0.35, notebook-style) instead of the scheme-aware one (whose high
+    majority5 value keeps near-saturated points that poison the fit, see
+    notebooks/fit_debug.ipynb), and no pz_max window cap. Keeps the
+    protective-regime guard and the in-range rejection so above-threshold
+    slices still return None.
+    """
+    sub = df[np.isclose(df["p"], p) & (df["errors"] > 0) & (df["shots"] > 0)
+             & (df[rate_col] < logical_cutoff)]
+    if sub["expected_distance"].nunique() < 2:
+        return None
+    if not _has_protective_regime(df, p):
+        return None
+    pz = sub["p_bell_z"].to_numpy(float)
+    d = sub["expected_distance"].to_numpy(float)
+    pL = sub[rate_col].to_numpy(float)
+    sigma = sub[sigma_col].to_numpy(float)
+
+    # Seeds, in order: bare min-variance locate, then the plateau-guarded
+    # min-variance point. The bare locate can land on the saturated plateau
+    # (all distances coincide there too); when the fit it seeds fails or runs
+    # out of range, the guarded seed usually recovers the true crossing.
+    seeds = [locate_threshold(pz, d, pL),
+             pz_threshold_min_variance(df, p, rate_col=rate_col)]
+    for p_init in seeds:
+        if p_init is None:
+            continue
+        try:
+            fit = fit_threshold(pz, d, pL, sigma=sigma, p_init=p_init,
+                                n_per_side=n_per_side)
+        except Exception:
+            continue
+        if pz.min() <= fit.p_th <= pz.max():
+            return fit
+    return None
+
+
 # Threshold estimator selected across the whole module: "fss" (quadratic
-# finite-size scaling, default) or "minvar" (plateau-relative min-variance point).
+# finite-size scaling with the pipeline's scheme-aware saturation cutoff +
+# pz_max window, default), "raw" (the same FSS estimator with a flat
+# conservative 0.35 cutoff and no pz_max cap), or "minvar" (plateau-relative
+# min-variance point).
 THRESHOLD_METHOD = "fss"
 
 
@@ -361,7 +406,10 @@ def estimate_pz_threshold(df: pd.DataFrame, p: float, rate_col: str = "pL",
     if THRESHOLD_METHOD == "minvar":
         pth = pz_threshold_min_variance(df, p, rate_col=rate_col)
         return (pth, 0.0) if pth is not None else None
-    fit = fit_pz_threshold(df, p, rate_col=rate_col, sigma_col=sigma_col)
+    if THRESHOLD_METHOD == "raw":
+        fit = fit_pz_threshold_raw(df, p, rate_col=rate_col, sigma_col=sigma_col)
+    else:
+        fit = fit_pz_threshold(df, p, rate_col=rate_col, sigma_col=sigma_col)
     return (fit.p_th, fit.p_th_err) if fit is not None else None
 
 
@@ -383,7 +431,8 @@ def _scheme_has_p(sdf: pd.DataFrame, p_res: float) -> bool:
 # ── Figures ───────────────────────────────────────────────────────────────────
 
 def plot_ler_overlay(df: pd.DataFrame, p_res: float, schemes: list[str], ax=None,
-                     xlim=None, ylim=None, show_title=False, per_observable=True):
+                     xlim=None, ylim=None, show_title=False, per_observable=True,
+                     show_legend=True):
     """LER vs p_z at fixed p_res, overlaying every scheme.
 
     Color encodes distance, linestyle encodes scheme; each scheme's fitted p_z
@@ -443,10 +492,40 @@ def plot_ler_overlay(df: pd.DataFrame, p_res: float, schemes: list[str], ax=None
     s_handles = [Line2D([0], [0], color="k", linestyle=scheme_linestyle(s),
                         label=scheme_label(s))
                  for s in schemes_plotted]
-    if d_handles or s_handles:
+    if show_legend and (d_handles or s_handles):
         ax.legend(handles=d_handles + s_handles, fontsize=7,
                   loc="lower right", framealpha=0.8)
     return fig if own else None
+
+
+def plot_ler_debug_grid(df: pd.DataFrame, scheme: str, xlim=None, ylim=None,
+                        ncols: int = 5, per_observable: bool = True):
+    """One big grid of LER-vs-p_z panels for a single scheme: one panel per
+    sampled p_res, with the fitted p_z threshold marked. A grid of every fit
+    at a glance, replacing the one-file-per-p_res debug dump."""
+    p_values = sorted(df[df["noise_model"] == scheme]["p"].dropna().unique())
+    if not p_values:
+        return None
+    nrows = (len(p_values) + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols,
+                             figsize=(4.4 * ncols, 3.6 * nrows),
+                             constrained_layout=True, squeeze=False)
+    for i, p_res in enumerate(p_values):
+        ax = axes[i // ncols][i % ncols]
+        plot_ler_overlay(df, float(p_res), [scheme], ax=ax, xlim=xlim, ylim=ylim,
+                         per_observable=per_observable, show_legend=(i == 0))
+        ax.set_title(rf"$p_{{\text{{res}}}} = {p_res:.3g}$", fontsize=13)
+        # Only label the outer edges (with a short y-label) to keep it readable.
+        if i % ncols == 0:
+            ax.set_ylabel("LER per obs." if per_observable else "LER", fontsize=13)
+        else:
+            ax.set_ylabel("")
+        if i // ncols != nrows - 1:
+            ax.set_xlabel("")
+    for i in range(len(p_values), nrows * ncols):
+        axes[i // ncols][i % ncols].axis("off")
+    fig.suptitle(f"{scheme_label(scheme)}  [{scheme_tag(scheme)}]", fontsize=16)
+    return fig
 
 
 def plot_threshold_vs_p(thr_by_scheme: dict, ax=None):
@@ -543,9 +622,11 @@ def main() -> None:
     parser.add_argument("--raw", action="store_true",
                         help="Plot and fit on the raw (P any-observable-fails) "
                              "rate instead of the per-observable rate.")
-    parser.add_argument("--method", choices=["minvar", "fss"], default="fss",
-                        help="Threshold estimator: minvar = plateau-relative "
-                             "min-variance crossing (default); fss = quadratic FSS.")
+    parser.add_argument("--method", choices=["raw", "fss", "minvar"], default="fss",
+                        help="Threshold estimator: fss = quadratic FSS with the "
+                             "scheme-aware cutoff (default); raw = FSS with a "
+                             "flat 0.35 cutoff and no pz_max cap; minvar = "
+                             "min-variance crossing.")
     args = parser.parse_args()
     global THRESHOLD_METHOD
     THRESHOLD_METHOD = args.method
@@ -600,36 +681,21 @@ def main() -> None:
     fig_p.savefig(out_p, bbox_inches="tight"); plt.close(fig_p)
     print(f"Saved -> {out_p}")
 
-    # Debug: per-scheme LER figures, one per sampled p_res, with fixed axes so
-    # they flip through / compare cleanly. Repeat and non-repeat schemes get a
-    # distinct filename prefix and their own index.
+    # Debug: one big grid figure per scheme — every sampled p_res as a panel
+    # (LER vs p_z with the fitted threshold marked), fixed axes so panels
+    # compare cleanly. Replaces the old one-file-per-p_res dump.
     if not args.no_debug:
-        dbg_dir = args.out_dir / f"{args.prefix}_ler_debug"
-        dbg_dir.mkdir(parents=True, exist_ok=True)
-        for old in dbg_dir.glob("*.png"):
-            old.unlink()
         xlim = (float(df["p_bell_z"].min()), float(df["p_bell_z"].max()))
         ylim = (1e-5, 1.0)
-        total = 0
         for s in schemes:
-            for i, p_res in enumerate(sorted(df[df["noise_model"] == s]["p"]
-                                             .dropna().unique())):
-                # Two panels: per-observable (left, where the crossing is clear)
-                # and overall raw P(any-fail) (right, which saturates at 1).
-                fig, (axL, axR) = plt.subplots(1, 2, figsize=(10.4, 4.2),
-                                               constrained_layout=True)
-                plot_ler_overlay(df, float(p_res), [s], ax=axL,
-                                 xlim=xlim, ylim=ylim, per_observable=True)
-                plot_ler_overlay(df, float(p_res), [s], ax=axR,
-                                 xlim=xlim, ylim=ylim, per_observable=False)
-                fig.suptitle(rf"$p_{{\text{{res}}}} = {p_res:.2g}$  [{scheme_tag(s)}]",
-                             fontsize=17)
-                fig.savefig(dbg_dir / f"{scheme_tag(s)}_{i:02d}_ler_pres={p_res:.5g}.png",
-                            dpi=130, bbox_inches="tight")
-                plt.close(fig)
-                total += 1
-        print(f"Saved {total} debug LER figures (per-observable | overall) "
-              f"-> {dbg_dir}/")
+            fig = plot_ler_debug_grid(df, s, xlim=xlim, ylim=ylim,
+                                      per_observable=per_obs)
+            if fig is None:
+                continue
+            out_g = args.out_dir / f"{args.prefix}_ler_grid_{scheme_tag(s)}.png"
+            fig.savefig(out_g, dpi=130, bbox_inches="tight")
+            plt.close(fig)
+            print(f"Saved -> {out_g}")
 
 
 if __name__ == "__main__":

@@ -182,11 +182,20 @@ def _fit(sub, xcol, nm, method="minvar"):
     """Return (p_th, p_th_err) for the chosen method, or None.
 
     method="minvar": plateau-relative min-variance crossing point (no error bar).
-    method="fss":    quadratic finite-size-scaling fit (p_th_err from the fit).
+    method="fss":    quadratic finite-size-scaling fit (p_th_err from the fit),
+                     with the grid pipeline's saturation cutoff / window caps.
+    method="raw":    the same FSS fit with a flat conservative 0.35 cutoff and
+                     no scheme-aware cutoff / pz_max cap.
     """
     if method == "minvar":
         pth = _threshold_min_variance(sub, xcol)
         return (pth, None) if pth is not None else None
+    if method == "raw":
+        if xcol == "p":
+            fit = _fit_p_axis(sub, logical_cutoff=0.35)
+        else:
+            fit = g.fit_pz_threshold_raw(sub, float(sub["p"].median()))
+        return (fit.p_th, fit.p_th_err) if fit is not None else None
     # fss:
     if xcol == "p":
         fit = _fit_p_axis(sub)
@@ -206,10 +215,11 @@ def main() -> None:
                     help="Single-axis sanity-check CSV (pres_check.csv or pz_check.csv).")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="Output figure (default: out/figures/<csv-stem>.pdf).")
-    ap.add_argument("--method", choices=["minvar", "fss"], default="fss",
-                    help="Threshold estimator: minvar = plateau-relative "
-                         "min-variance crossing point (default); fss = quadratic "
-                         "finite-size-scaling fit.")
+    ap.add_argument("--method", choices=["raw", "fss", "minvar"], default="fss",
+                    help="Threshold estimator: fss = quadratic finite-size-"
+                         "scaling fit with the scheme-aware cutoff (default); "
+                         "raw = FSS with a flat 0.35 cutoff and no pz_max cap; "
+                         "minvar = plateau-relative min-variance crossing point.")
     args = ap.parse_args()
 
     df = g.load_grid(args.csv)

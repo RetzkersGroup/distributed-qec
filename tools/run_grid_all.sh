@@ -19,20 +19,20 @@ cd "$(dirname "$0")/.."
 
 HYP_MODE="${1:-test}"
 
-echo "############################################################"
-echo "# 1-2. Sample honeycomb (base bell + majority vote) [resume]"
-echo "############################################################"
-bash tools/_grid_scans/run_grid_bell.sh bell
-bash tools/_grid_scans/run_grid_bell.sh majority
-bash tools/_grid_scans/run_grid_bell.sh majority5
+# echo "############################################################"
+# echo "# 1-2. Sample honeycomb (base bell + majority vote) [resume]"
+# echo "############################################################"
+# bash tools/_grid_scans/run_grid_bell.sh bell
+# bash tools/_grid_scans/run_grid_bell.sh majority
+# bash tools/_grid_scans/run_grid_bell.sh majority5
 
-echo "############################################################"
-echo "# 3. Sample hyperbolic Floquet (${HYP_MODE}, 3d rounds) [resume]"
-echo "#    base + 3-rep + 5-rep majority vote"
-echo "############################################################"
-bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE" base
-bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE" majority
-bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE" majority5
+# echo "############################################################"
+# echo "# 3. Sample hyperbolic Floquet (${HYP_MODE}, 3d rounds) [resume]"
+# echo "#    base + 3-rep + 5-rep majority vote"
+# echo "############################################################"
+# bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE" base
+# bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE" majority
+# bash tools/_grid_scans/run_grid_hyperbolic.sh "$HYP_MODE" majority5
 
 echo "############################################################"
 echo "# 4. Plot"

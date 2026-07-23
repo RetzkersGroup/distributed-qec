@@ -114,8 +114,12 @@ def main() -> None:
                     help="Use a log y-axis for the boundary panel.")
     ap.add_argument("--out", type=pathlib.Path,
                     default=_ROOT / "out" / "figures" / "grid_summary.pdf")
-    ap.add_argument("--method", choices=["minvar", "fss"], default="fss",
-                    help="Threshold estimator (default fss).")
+    ap.add_argument("--method", choices=["raw", "fss", "minvar"], default="fss",
+                    help="Threshold estimator: fss = the grid-pipeline fit "
+                         "with the scheme-aware cutoff (default); raw = "
+                         "src/threshold_fit.py FSS fit with a flat 0.35 "
+                         "cutoff and no pz_max cap; minvar = plateau-relative "
+                         "min-variance point.")
     args = ap.parse_args()
     g.THRESHOLD_METHOD = args.method
 
@@ -193,8 +197,8 @@ def main() -> None:
               f"intercepts p_z*(p_res=0)={pt_pz}, p_res*(p_z=0)={pt_pres}")
     if args.logy_boundary:
         ax_top.set_yscale("log")
-    ax_top.set_xlabel(r"$p_{\text{res}}$", fontsize=17)
-    ax_top.set_ylabel(r"$p_z$ (threshold)", fontsize=17)
+    ax_top.set_xlabel(r"$p^*_{\text{res}}$", fontsize=17)
+    ax_top.set_ylabel(r"$p_z^*$ (threshold)", fontsize=17)
     ax_top.grid(True, alpha=0.3)
     ax_top.legend(fontsize=8.5, framealpha=0.9)
 
