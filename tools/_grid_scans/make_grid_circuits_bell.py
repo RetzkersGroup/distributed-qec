@@ -44,6 +44,7 @@ for _p in (str(_SRC), str(_TOOLS)):
         sys.path.insert(0, _p)
 
 from bell_translation import translate_circuit  # noqa: E402
+from repeat_measurements import repeat_measurements  # noqa: E402
 
 # Reuse the noise derivation / input resolution from the bias-scan generator so
 # the two share one source of truth (a circuit at a given (p, p_bell_z) is
@@ -78,8 +79,14 @@ def _process(
     mzz_gadget: str,
     scheme: str,
     noiseless_start_end: bool,
+    repeat: int = 1,
 ) -> str:
     model_name = _model_name(mzz_gadget, scheme)
+    if repeat > 1:
+        # Full-decoder repeated measurements: the structural repetition is
+        # applied BEFORE translation, and the name gets a _fullrep{r} suffix so
+        # downstream fits/plots (which key on noise_model) see a new scheme.
+        model_name = f"{model_name}_fullrep{repeat}"
     out_stem = f"{in_path.stem}__{model_name},pz={_fmt(p_bell_z)},p={_fmt(p)}"
     out_circuit_path = out_dir / f"{out_stem}.stim"
     out_meta_path = out_dir / f"{out_stem}.json"
@@ -91,6 +98,8 @@ def _process(
         return f"  pz={p_bell_z:.4g} p={p:.4g} -> {out_circuit_path.name} (skipped)"
 
     raw = stim.Circuit.from_file(str(in_path))
+    if repeat > 1:
+        raw = repeat_measurements(raw, repeat)
     noise = _noise_from_p(p, p_bell_z, mzz_gadget, scheme)
     translated = translate_circuit(
         raw, noise, noiseless_start_end=noiseless_start_end,
@@ -110,6 +119,8 @@ def _process(
         "noise_model": model_name,
         "mzz_gadget": mzz_gadget,
         "scheme": scheme,
+        "repetitions": repeat,
+        "decoder_kind": "full" if repeat > 1 else "single",
         "noise_params": noise.to_dict(),
         "noiseless_start_end": noiseless_start_end,
         "translation": "bell",
@@ -179,7 +190,21 @@ def main() -> None:
         help="If set, only inject Bell-prep noise inside the "
              "TICK[start_noise]..TICK[stop_noise] window in the input circuit.",
     )
+    parser.add_argument(
+        "--repeat", type=int, default=1,
+        help="Full-decoder measurement repetitions: apply repeat_measurements "
+             "(r copies of each mid-circuit measurement layer + comparison "
+             "detectors) before translation. Default 1 = no repetition. "
+             "Do NOT combine with the equivalent_v3_majority* schemes (those "
+             "already fold repetition into the noise block).",
+    )
     args = parser.parse_args()
+
+    if args.repeat > 1 and "majority" in args.scheme:
+        parser.error(
+            "--repeat > 1 double-counts repetition when combined with a "
+            "majority scheme; use --scheme bell or equivalent_v3."
+        )
 
     if args.mzz_gadget is None:
         args.mzz_gadget = "v2" if args.noise_model == "biased_bell_v2" else "v3"
@@ -213,7 +238,7 @@ def main() -> None:
         futures = [
             ex.submit(_process, in_path, p, pbz, out_dir,
                       args.skip_existing, args.mzz_gadget, args.scheme,
-                      args.noiseless_start_end)
+                      args.noiseless_start_end, args.repeat)
             for in_path, p, pbz in jobs
         ]
         for done, fut in enumerate(as_completed(futures), 1):

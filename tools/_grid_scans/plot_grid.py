@@ -269,8 +269,8 @@ def _pz_cutoff_for(df: pd.DataFrame) -> float:
         return 0.3
     k = df["k"].dropna()
     if "majority5" in s and len(k) and int(k.iloc[0]) == 1:
-        return 0.495
-    return 0.45
+        return 0.4
+    return 0.4
 
 
 def _pz_max_for(df: pd.DataFrame) -> float:
@@ -623,10 +623,9 @@ def main() -> None:
                         help="Plot and fit on the raw (P any-observable-fails) "
                              "rate instead of the per-observable rate.")
     parser.add_argument("--method", choices=["raw", "fss", "minvar"], default="fss",
-                        help="Threshold estimator: fss = quadratic FSS with the "
-                             "scheme-aware cutoff (default); raw = FSS with a "
-                             "flat 0.35 cutoff and no pz_max cap; minvar = "
-                             "min-variance crossing.")
+                        help="Threshold estimator: fss = wrapped quadratic FSS "
+                             "(default); raw = FSS with no cutoff/window "
+                             "wrappers; minvar = min-variance crossing.")
     args = parser.parse_args()
     global THRESHOLD_METHOD
     THRESHOLD_METHOD = args.method
