@@ -71,9 +71,13 @@ def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
     if decoder_name in ("tesseract_short", "tesseract_long"):
         from tesseract_decoder_utils import get_tesseract_decoder
         return get_tesseract_decoder(decoder_name.removeprefix("tesseract_"))
+    if decoder_name in ("relay-bp", "mem-bp", "msl-bp"):
+        from relay_bp.stim import sinter_decoders
+        return sinter_decoders()
     raise ValueError(
         f"Unknown decoder: {decoder_name!r}. "
-        f"Supported: pymatching, fusion_blossom, tesseract_short, tesseract_long."
+        f"Supported: pymatching, fusion_blossom, tesseract_short, "
+        f"tesseract_long, relay-bp, mem-bp, msl-bp."
     )
 
 

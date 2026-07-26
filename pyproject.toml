@@ -19,8 +19,9 @@ dependencies = [
 sampling = ["sinter>=1.14.0", "pymatching>=2.0.0", "pandas"]
 notebooks = ["jupyter", "ipython", "matplotlib", "pandas"]
 tesseract = ["tesseract-decoder"]
+bp = ["relay-bp", "beliefmatching", "stimbposd"]
 dev = ["pytest"]
-all = ["distributed-ghz[sampling,notebooks,tesseract,dev]"]
+all = ["distributed-ghz[sampling,notebooks,tesseract,bp,dev]"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
