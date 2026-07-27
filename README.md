@@ -20,7 +20,7 @@ pip install -e .
 Optional extras:
 
 ```bash
-pip install -e ".[sampling]"    # sinter (for milestone 2)
+pip install -e ".[sampling]"    # sinter (for sampling/decoding)
 pip install -e ".[notebooks]"   # jupyter, matplotlib, pandas
 pip install -e ".[all]"         # everything
 ```
@@ -29,12 +29,23 @@ pip install -e ".[all]"         # everything
 
 ```
 distributed-ghz/
-├── src/                # library code
-│   └── bell_translation.py
-├── tools/              # standalone scripts
-│   └── translate.py
-├── in/                 # input circuits + metadata
-├── out/                # output circuits + metadata
+├── src/                     # library code
+│   ├── bell_translation.py          # Bell-pair measurement translation + noise
+│   ├── equivalent_noise_calculator.py  # single-ancilla equivalent noise model
+│   ├── threshold_fit.py             # quadratic finite-size-scaling threshold fit
+│   ├── bell_threshold_analysis.py   # load/fit/plot backend for the Bell threshold scans
+│   ├── high_rate_analysis.py        # high-rate (hyperbolic Floquet) analysis
+│   └── noise_utils.py               # shared noise helpers
+├── tools/                   # standalone scripts
+│   ├── translate.py                 # CLI for bell_translation
+│   ├── make_threshold_circuits_bell.py  # generate Bell threshold-scan circuits
+│   ├── decode.py                    # sinter sampling/decoding into CSVs
+│   ├── _grid_scans/                 # (p_res, p_z) grid pipeline (Fig. 4)
+│   └── stairway_codes/              # stairway LER-vs-p_z pipeline (Fig. 5)
+├── notebooks/               # analysis and figure notebooks
+├── tests/                   # pytest suite
+├── in/                      # input circuits + metadata
+├── out/                     # output circuits, CSVs, and figures
 └── pyproject.toml
 ```
 
@@ -146,9 +157,18 @@ noisy = translate_circuit(src, {
 })
 ```
 
-## Milestones
+## Reproducing the figures
 
-- **Milestone 1 (done):** Bell translation with `biased_bell` noise.
-- **Milestone 2 (planned):** Sampling with sinter, end-to-end CSV pipeline.
-- **Milestone 3 (planned):** GHZ-based measurements for multi-qubit stabilizer
-  codes (e.g. Bivariate Bicycle).
+**Figure 4** — honeycomb and hyperbolic Floquet threshold grids:
+
+```bash
+bash tools/run_grid_all.sh
+```
+
+**Figure 5** — stairway-code logical error rate vs. `p_z`:
+
+```bash
+bash tools/stairway_codes/make_circuits_stairway.sh
+bash tools/stairway_codes/decode_stairway.sh
+bash tools/stairway_codes/plot_stairway.sh
+```

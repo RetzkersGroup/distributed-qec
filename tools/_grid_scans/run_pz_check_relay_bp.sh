@@ -26,6 +26,10 @@ INPUT_GLOB="in/circuits/honeycomb_gidney/model=SDEM3,*obs=H*.stim"
 PREAMBLE="full_check_pz_relay_bp"
 MAX_SHOTS="${MAX_SHOTS:-100000}"
 MAX_ERRORS="${MAX_ERRORS:-500}"
+# relay-bp-light: 10-set relay ensemble (~5x faster than the library default,
+# no accuracy loss in spot checks). Override with DECODER=relay-bp for the
+# full-strength ensemble or relay-bp-ultralight for quick sanity passes.
+DECODER="${DECODER:-relay-bp-light}"
 
 P_FLOOR=1e-6
 NPZ=25
@@ -56,10 +60,10 @@ python tools/_grid_scans/make_grid_circuits_bell.py \
   --skip-existing
 
 for DIR in out/circuits/full_check_pz_rep1 out/circuits/full_check_pz_rep3; do
-  echo "=== decode $DIR with relay-bp (resume) -> out/collection/${PREAMBLE}.csv ==="
+  echo "=== decode $DIR with $DECODER (resume) -> out/collection/${PREAMBLE}.csv ==="
   python tools/decode.py \
     --circuit-files "$DIR"/*.stim \
-    --decoder relay-bp \
+    --decoder "$DECODER" \
     --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
     --print-progress \
     --output-preamble "$PREAMBLE" --resume

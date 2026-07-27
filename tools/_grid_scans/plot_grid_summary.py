@@ -186,7 +186,7 @@ def main() -> None:
         if pt_pres is not None:
             p = np.append(p, pt_pres); pth = np.append(pth, 0.0); err = np.append(err, 0.0)
 
-        ax_top.errorbar(p, pth, yerr=None, fmt=marker + "-", color=color,
+        ax_top.errorbar(p, pth, yerr=es, fmt=marker + "-", color=color,
                         label=label, markersize=5, linewidth=1.7, capsize=3)
         # Highlight the two check-derived intercept points.
         for xi, yi in ((0.0, pt_pz), (pt_pres, 0.0)):
