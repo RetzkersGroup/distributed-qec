@@ -66,18 +66,43 @@ def _write_sinter_csv(path: pathlib.Path, stats) -> None:
 
 def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
     """Return custom decoder dict if needed, None for built-in decoders."""
-    if decoder_name in ("pymatching", "fusion_blossom"):
+    # Built-in sinter decoders (no custom_decoders entry needed).
+    # 'pymatching-correlated' is native correlated MWPM (pymatching >= 2.3:
+    # two-pass sparse blossom that reweights edges correlated via decomposed
+    # hyperedges) — handles the non-graphlike DEM better than plain pymatching.
+    if decoder_name in ("pymatching", "pymatching-correlated", "fusion_blossom",
+                        "hypergraph_union_find", "mw_parity_factor", "vacuous"):
         return None
     if decoder_name in ("tesseract_short", "tesseract_long"):
         from tesseract_decoder_utils import get_tesseract_decoder
         return get_tesseract_decoder(decoder_name.removeprefix("tesseract_"))
+    if decoder_name == "belief_matching":
+        # Correlated MWPM: belief propagation reweights the matching graph
+        # (accounting for correlated / hyperedge errors that plain pymatching
+        # decomposes lossily), then pymatching matches on the reweighted graph.
+        from beliefmatching import BeliefMatchingSinterDecoder
+        return {"belief_matching": BeliefMatchingSinterDecoder(max_bp_iters=20)}
     if decoder_name in ("relay-bp", "mem-bp", "msl-bp"):
         from relay_bp.stim import sinter_decoders
         return sinter_decoders()
+    if decoder_name in ("relay-bp-light", "relay-bp-ultralight"):
+        # Lighter relay ensembles: the library default (60 sets x 60 iters,
+        # stop after 5 agreeing solutions) costs ~2.5 s/shot on the d=7
+        # repeated honeycomb circuits near threshold; these presets are
+        # ~5x / ~13x faster with no accuracy loss observed in spot checks.
+        from relay_bp.stim.sinter.decoders import SinterDecoder_RelayBP
+        if decoder_name == "relay-bp-light":
+            dec = SinterDecoder_RelayBP(num_sets=10, stop_nconv=1)
+        else:
+            dec = SinterDecoder_RelayBP(
+                num_sets=4, stop_nconv=1, pre_iter=30, set_max_iter=30,
+            )
+        return {decoder_name: dec}
     raise ValueError(
         f"Unknown decoder: {decoder_name!r}. "
-        f"Supported: pymatching, fusion_blossom, tesseract_short, "
-        f"tesseract_long, relay-bp, mem-bp, msl-bp."
+        f"Supported: pymatching, pymatching-correlated, fusion_blossom, "
+        f"belief_matching, tesseract_short, tesseract_long, relay-bp, "
+        f"relay-bp-light, relay-bp-ultralight, mem-bp, msl-bp."
     )
 
 
@@ -167,8 +192,15 @@ def run_decode(
         outfile = out_dir / f"{output_preamble},{today_str}.csv"
         samples = sinter.collect(**collect_kwargs)
         df = pd.DataFrame([vars(stat) for stat in samples])
-        file_exists = outfile.is_file()
-        df.to_csv(outfile, mode="a", header=not file_exists, index=False)
+        # Serialize concurrent appends (e.g. PBS array tasks sharing one CSV)
+        # with an advisory lock on a sidecar lockfile.
+        import fcntl
+        lockfile = outfile.with_suffix(".lock")
+        with open(lockfile, "w") as lf:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+            file_exists = outfile.is_file() and outfile.stat().st_size > 0
+            df.to_csv(outfile, mode="a", header=not file_exists, index=False)
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
     elapsed = time.time() - start_time
     logging.info(f"Finished. Results saved to {outfile}")
