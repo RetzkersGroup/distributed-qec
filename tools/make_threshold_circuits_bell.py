@@ -78,6 +78,7 @@ def _noise_from_p(
             scheme=scheme,
             p_e=p,
             p_bell_z=p_bell_z,
+            p_m=p,
             p_1=p / 10,
             p_init=p,
         )
