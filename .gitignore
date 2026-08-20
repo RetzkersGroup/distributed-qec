@@ -24,3 +24,7 @@ out/
 .claude/settings.local.json
 in/circuits/hyperbolic_floquet/8.8.8/k=6_0e885f39/*
 temp/*
+in/circuits/honeycomb_tesseract_debug/*
+
+# Reference repo (peter-janderks/floquet_colour_codes_numerics), cloned for comparison
+floquet_colour_codes_numerics/
