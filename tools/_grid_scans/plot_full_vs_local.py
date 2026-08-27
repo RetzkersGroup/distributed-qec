@@ -136,8 +136,12 @@ def main() -> None:
     g.THRESHOLD_METHOD = args.method
 
     def load(csv):
+        # Also glob dated append-mode siblings (`{stem},{date}.csv`) so runs
+        # without --resume aggregate with the resume-mode file; the comma
+        # separator avoids matching other preambles sharing a prefix.
+        p = pathlib.Path(csv)
         try:
-            df = g.load_grid(csv)
+            df = g.load_grid([csv, str(p.with_name(f"{p.stem},*.csv"))])
         except FileNotFoundError:
             return None
         # Honeycomb-only figure; drop other families if the CSV mixes them.

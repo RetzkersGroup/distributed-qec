@@ -20,6 +20,16 @@ sampling = ["sinter>=1.14.0", "pymatching>=2.0.0", "pandas"]
 notebooks = ["jupyter", "ipython", "matplotlib", "pandas"]
 tesseract = ["tesseract-decoder"]
 bp = ["relay-bp", "beliefmatching", "stimbposd"]
+# Peter-Jan Derks' gauge floquet colour-code numerics (tools/peterjan_tools/).
+# `main` = OzYossarian/Kandel (the paper's stim compiler). Its own pins are very
+# old (stim 1.10, numpy 1.23), so install with --no-deps against the current env;
+# stimcirq/networkx/alive-progress are its runtime deps. See tools/peterjan_tools/README.md.
+peterjan = [
+    "kandel @ git+https://github.com/OzYossarian/Kandel",
+    "stimcirq",
+    "networkx",
+    "alive-progress",
+]
 dev = ["pytest"]
 all = ["distributed-ghz[sampling,notebooks,tesseract,bp,dev]"]
 

@@ -33,6 +33,20 @@ import plot_grid as g  # noqa: E402
 import analyze_axis_threshold as az  # noqa: E402
 
 _BASE = "biased_bell_v3_equivalent"
+
+
+def _with_dated(csv: str) -> list[str]:
+    """A resume-mode CSV path plus its dated append-mode siblings.
+
+    decode.py without --resume appends to `{preamble},{date}.csv`; the comma
+    separator keeps the glob from matching other preambles that merely share
+    a prefix (e.g. full_check_pz_relay_bp.csv). load_grid aggregates all
+    matched files by strong_id, so shots/errors sum across runs.
+    """
+    p = pathlib.Path(csv)
+    return [csv, str(p.with_name(f"{p.stem},*.csv"))]
+
+
 _FULL_CHECK = str(_ROOT / "out/collection/full_check_pz.csv")
 _PZ_CHECK = str(_ROOT / "out/collection/pz_check.csv")
 
@@ -46,7 +60,7 @@ _LOCAL_REFS = [
 
 def _load_honeycomb(csv):
     try:
-        df = g.load_grid(csv)
+        df = g.load_grid(_with_dated(csv))
     except FileNotFoundError:
         return None
     return df[df["input_circuit"].fillna("").str.contains("honeycomb")]

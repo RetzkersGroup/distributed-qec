@@ -21,7 +21,7 @@ cd "$(dirname "$0")/../.."
 
 export PYTHONUNBUFFERED=1
 
-REPS="${1:-2 3 4 5}"
+REPS="${1:-1 2 3 4 5}"
 INPUT_GLOB="in/circuits/honeycomb_gidney/model=SDEM3,*obs=H*.stim"
 PREAMBLE="full_check_pz"
 MAX_SHOTS=100000
@@ -30,7 +30,7 @@ MAX_ERRORS=500
 # As in run_pres_threshold_check.sh Scan B: p_res is pinned to a tiny floor
 # rather than exactly 0, so the matching graph keeps its boundary connections
 # without shifting the threshold.
-P_FLOOR=1e-6
+P_FLOOR=0
 NPZ=25
 
 for R in $REPS; do
@@ -45,7 +45,7 @@ for R in $REPS; do
     *) PZ_LO=3e-3; PZ_HI=2e-1 ;;
   esac
   PZ=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(np.log10($PZ_LO), np.log10($PZ_HI), $NPZ)))")
-  OUTPUT_DIR="out/circuits/full_check_pz_rep${R}"
+  OUTPUT_DIR="out/circuits/full_check_pz_rep${R}_0pres"
 
   echo "=== [r=$R] generate p_z-scan circuits (p_res=$P_FLOOR, ${NPZ} p_z) ==="
   python tools/_grid_scans/make_grid_circuits_bell.py \
@@ -54,15 +54,15 @@ for R in $REPS; do
     --scheme equivalent_v3 \
     --repeat "$R" \
     --p-values $P_FLOOR \
-    --p-bell-z-values $PZ \
-    --skip-existing
+    --p-bell-z-values $PZ
+  #   --skip-existing
 
-  echo "=== [r=$R] decode (resume) -> out/collection/${PREAMBLE}.csv ==="
-  python tools/decode.py \
-    --circuit-files "$OUTPUT_DIR"/*.stim \
-    --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
-    --print-progress \
-    --output-preamble "$PREAMBLE" --resume
+  # echo "=== [r=$R] decode (resume) -> out/collection/${PREAMBLE}.csv ==="
+  # python tools/decode.py \
+  #   --circuit-files "$OUTPUT_DIR"/*.stim \
+  #   --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
+  #   --print-progress \
+  #   --output-preamble "$PREAMBLE" --resume
 done
 
 echo

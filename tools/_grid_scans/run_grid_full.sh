@@ -45,26 +45,26 @@ for R in $REPS; do
     *) PZ_HI=2e-1 ;;
   esac
   PZ=$(python -c "import numpy as np; print(' '.join(f'{x:.10g}' for x in np.logspace(-3, np.log10($PZ_HI), $NPZ)))")
-  OUTPUT_DIR="out/circuits/grid_full_rep${R}"
+  OUTPUT_DIR="out/circuits/grid_full_rep${R}_bell_scheme"
 
   echo "=== [r=$R] Stage 1: generate full-decoder grid circuits (${NP} p x ${NPZ} p_z) ==="
   python tools/_grid_scans/make_grid_circuits_bell.py \
     --input "$INPUT_GLOB" \
     --output-dir "$OUTPUT_DIR" \
-    --scheme equivalent_v3 \
+    --scheme bell \
     --repeat "$R" \
     --p-values $P \
     --p-bell-z-values $PZ \
     --skip-existing
 
-  echo "=== [r=$R] Stage 2: decode (resume) -> out/collection/${PREAMBLE}.csv ==="
-  python tools/decode.py \
-    --circuit-files "$OUTPUT_DIR"/*.stim \
-    --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
-    --print-progress \
-    --output-preamble "$PREAMBLE" --resume
+  # echo "=== [r=$R] Stage 2: decode (resume) -> out/collection/${PREAMBLE}.csv ==="
+  # python tools/decode.py \
+  #   --circuit-files "$OUTPUT_DIR"/*.stim \
+  #   --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
+  #   --print-progress \
+  #   --output-preamble "$PREAMBLE" --resume
 done
 
-echo
-echo "Done. Data: out/collection/${PREAMBLE}.csv"
-echo "Figure:   python tools/_grid_scans/plot_full_vs_local.py"
+# echo
+# echo "Done. Data: out/collection/${PREAMBLE}.csv"
+# echo "Figure:   python tools/_grid_scans/plot_full_vs_local.py"

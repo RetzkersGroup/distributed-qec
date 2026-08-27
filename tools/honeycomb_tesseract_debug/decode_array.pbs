@@ -1,0 +1,60 @@
+#!/bin/bash
+#PBS -N hc_tess_debug
+#PBS -J 0-299
+#PBS -l select=1:ncpus=4:mem=8gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o out/logs/
+
+# Tesseract vs pymatching on the original Gidney planar-honeycomb circuits
+# (EM3_v3, in/circuits/honeycomb_tesseract_debug/), decoded AS-IS with their
+# inline noise.
+#
+# Job array: one task per (circuit, decoder) pair.
+#   index i in 0..299:  circuit = sorted(*.stim)[i % 150],
+#                       decoder = pymatching (i < 150) | tesseract_short (i >= 150)
+#
+# Every task appends its finished rows to the same dated CSV
+# (out/collection/honeycomb_tesseract_debug,<date>.csv — decode.py append
+# mode), so partial results are usable while slow tesseract tasks run, and
+# resubmitting the array adds fresh samples (no dedup/resume; statistics
+# accumulate across runs). Analysis side globs the preamble, so multi-day
+# runs (several dated CSVs) aggregate transparently.
+#
+# Submit from the repo root on the cluster:
+#   qsub tools/honeycomb_tesseract_debug/decode_array.pbs
+# Subset (e.g. only tesseract): qsub -J 150-299 ...
+#
+# Assumes the venv/conda env with the project installed is auto-activated by
+# the login shell, or set VENV_ACTIVATE to a script to source.
+
+set -e
+cd "$PBS_O_WORKDIR"
+
+[ -n "$VENV_ACTIVATE" ] && source "$VENV_ACTIVATE"
+export PYTHONUNBUFFERED=1
+
+CIRCUIT_DIR="in/circuits/honeycomb_tesseract_debug"
+PREAMBLE="honeycomb_tesseract_debug"
+MAX_SHOTS="${MAX_SHOTS:-100000}"
+MAX_ERRORS="${MAX_ERRORS:-500}"
+
+# Deterministic circuit list (sorted); must match between submissions.
+CIRCUITS=($(ls "$CIRCUIT_DIR"/*.stim | sort))
+N=${#CIRCUITS[@]}
+
+IDX=$((PBS_ARRAY_INDEX % N))
+if [ "$PBS_ARRAY_INDEX" -lt "$N" ]; then
+  DECODER="pymatching"
+else
+  DECODER="tesseract_short"
+fi
+CIRCUIT="${CIRCUITS[$IDX]}"
+
+echo "[task $PBS_ARRAY_INDEX] decoder=$DECODER circuit=$CIRCUIT"
+python tools/decode.py \
+  --circuit-files "$CIRCUIT" \
+  --decoder "$DECODER" \
+  --max-shots "$MAX_SHOTS" --max-errors "$MAX_ERRORS" \
+  --cores "$NCPUS" \
+  --output-preamble "$PREAMBLE"
