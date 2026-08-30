@@ -82,12 +82,12 @@ _blues = plt.get_cmap("Blues")
 _greens = plt.get_cmap("Greens")
 _CURVES = [
     (_BASE, "no repetition (r=1)", "#444444", "o", "-"),
-    (f"{_BASE}_majority", "majority vote, r=3", _blues(0.60), "D", "--"),
-    (f"{_BASE}_majority5", "majority vote, r=5", _blues(0.90), "P", "--"),
-    (_fullrep(2), "full decoder, r=2", _greens(0.45), "s", "-"),
-    (_fullrep(3), "full decoder, r=3", _greens(0.62), "v", "-"),
-    (_fullrep(4), "full decoder, r=4", _greens(0.78), "^", "-"),
-    (_fullrep(5), "full decoder, r=5", _greens(0.94), "X", "-"),
+    (f"{_BASE}_majority", "Pymatching decoder with majority vote, r=3", _blues(0.60), "D", "--"),
+    (f"{_BASE}_majority5", "Pymatching decoder with majority vote, r=5", _blues(0.90), "P", "--"),
+    (_fullrep(2), "pymatching decoder without majority vote, r=2", _greens(0.45), "s", "-"),
+    (_fullrep(3), "pymatching decoder without majority vote, r=3", _greens(0.62), "v", "-"),
+    (_fullrep(4), "pymatching decoder without majority vote, r=4", _greens(0.78), "^", "-"),
+    (_fullrep(5), "pymatching decoder without majority vote, r=5", _greens(0.94), "X", "-"),
 ]
 
 
@@ -200,7 +200,6 @@ def main() -> None:
         ax.set_yscale("log")
     ax.set_xlabel(r"$p^*_{\text{res}}$", fontsize=17)
     ax.set_ylabel(r"$p_z^*$ (threshold)", fontsize=17)
-    ax.set_title("Honeycomb: full decoder vs majority vote", fontsize=14)
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=9, framealpha=0.9)
 
