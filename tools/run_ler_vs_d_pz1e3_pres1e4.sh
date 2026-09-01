@@ -15,10 +15,13 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-P_Z=1e-3     # --p-bell-z-values (Bell Z error rate)
-P_RES=1e-4   # --p-values (residual noise p)
+# Noise point, overridable from the environment (use scientific notation so
+# the derived CSV preamble stays readable):
+#   P_Z=1e-2 bash tools/run_ler_vs_d_pz1e3_pres1e4.sh pymatching
+P_Z="${P_Z:-1e-3}"     # --p-bell-z-values (Bell Z error rate)
+P_RES="${P_RES:-1e-4}" # --p-values (residual noise p)
 INPUT_GLOB="in/circuits/honeycomb_gidney/model=SDEM3,*obs=H*.stim"
-PREAMBLE="ler_vs_d_pz1e-3_pres1e-4"
+PREAMBLE="ler_vs_d_pz${P_Z}_pres${P_RES}"
 PY=.venv/bin/python
 
 # name|circuit_dir|scheme flags for make_grid_circuits_bell.py
@@ -85,7 +88,6 @@ for dentry in "${DECODERS[@]}"; do
       --max-shots "$max_shots" \
       --max-errors "$max_errors" \
       --output-preamble "$PREAMBLE" \
-      --resume \
       --print-progress
   done
 done
