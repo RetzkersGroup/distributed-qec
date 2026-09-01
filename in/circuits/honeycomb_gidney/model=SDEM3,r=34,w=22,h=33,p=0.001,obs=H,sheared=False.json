@@ -1,0 +1,18 @@
+{
+  "code_family": "honeycomb",
+  "code_name": "honeycomb_gidney",
+  "source": "https://quantum-journal.org/papers/q-2022-09-21-813/",
+  "noise_model": "SDEM3",
+  "p": 0.001,
+  "w": 22,
+  "h": 33,
+  "rounds": 34,
+  "observable": "H",
+  "sheared": false,
+  "expected_distance": 11,
+  "k": 1,
+  "num_qubits": 726,
+  "num_measurements": 39248,
+  "num_detectors": 12573,
+  "num_observables": 1
+}
