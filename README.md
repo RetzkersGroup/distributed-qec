@@ -172,3 +172,14 @@ bash tools/stairway_codes/make_circuits_stairway.sh
 bash tools/stairway_codes/decode_stairway.sh
 bash tools/stairway_codes/plot_stairway.sh
 ```
+
+# correlated decoding full-vs-local decoder
+
+To produce the figure (the multi-hour decode — run when ready, ideally on a cluster):
+```bash
+bash tools/_grid_scans/run_grid_bell_correlated.sh bell
+bash tools/_grid_scans/run_grid_bell_correlated.sh majority
+bash tools/_grid_scans/run_grid_bell_correlated.sh majority5
+bash tools/_grid_scans/run_grid_full_correlated.sh          # r = 2 3 4 5
+python tools/_grid_scans/plot_full_vs_local.py --correlated
+```
