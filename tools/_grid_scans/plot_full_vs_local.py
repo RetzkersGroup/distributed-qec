@@ -48,6 +48,11 @@ import analyze_axis_threshold as az  # noqa: E402  (axis-intercept estimators)
 from plot_grid_summary import _monotonic_decreasing  # noqa: E402
 plt.rcParams.update({"xtick.labelsize": 15, "ytick.labelsize": 15})
 
+# Default (plain pymatching) CSVs. --correlated swaps in the `*_correlated`
+# siblings written by run_grid_{bell,full}_correlated.sh (native correlated MWPM).
+# Correlated rows must live in separate CSVs: sinter's strong_id encodes the
+# decoder and load_grid groups by strong_id, so mixing decoders in one CSV would
+# put two rows per grid point and corrupt the per-scheme threshold fits.
 _GRID_LOCAL = str(_ROOT / "out/collection/grid_bell.csv")
 _GRID_FULL = str(_ROOT / "out/collection/grid_full.csv")
 # Axis-intercept check CSVs (optional; stars are skipped when missing).
@@ -55,6 +60,12 @@ _CHECK_PZ_LOCAL = str(_ROOT / "out/collection/pz_check.csv")
 _CHECK_PRES_LOCAL = str(_ROOT / "out/collection/pres_check.csv")
 _CHECK_PZ_FULL = str(_ROOT / "out/collection/full_check_pz.csv")
 _CHECK_PRES_FULL = str(_ROOT / "out/collection/full_check_pres.csv")
+
+
+def _correlated_csv(path: str) -> str:
+    """`out/collection/foo.csv` -> `out/collection/foo_correlated.csv`."""
+    p = pathlib.Path(path)
+    return str(p.with_name(f"{p.stem}_correlated{p.suffix}"))
 
 _BASE = "biased_bell_v3_equivalent"
 
@@ -82,12 +93,12 @@ _blues = plt.get_cmap("Blues")
 _greens = plt.get_cmap("Greens")
 _CURVES = [
     (_BASE, "no repetition (r=1)", "#444444", "o", "-"),
-    (f"{_BASE}_majority", "majority vote, r=3", _blues(0.60), "D", "--"),
-    (f"{_BASE}_majority5", "majority vote, r=5", _blues(0.90), "P", "--"),
-    (_fullrep(2), "full decoder, r=2", _greens(0.45), "s", "-"),
-    (_fullrep(3), "full decoder, r=3", _greens(0.62), "v", "-"),
-    (_fullrep(4), "full decoder, r=4", _greens(0.78), "^", "-"),
-    (_fullrep(5), "full decoder, r=5", _greens(0.94), "X", "-"),
+    (f"{_BASE}_majority", "Pymatching decoder with majority vote, r=3", _blues(0.60), "D", "--"),
+    (f"{_BASE}_majority5", "Pymatching decoder with majority vote, r=5", _blues(0.90), "P", "--"),
+    (_fullrep(2), "pymatching decoder without majority vote, r=2", _greens(0.45), "s", "-"),
+    (_fullrep(3), "pymatching decoder without majority vote, r=3", _greens(0.62), "v", "-"),
+    (_fullrep(4), "pymatching decoder without majority vote, r=4", _greens(0.78), "^", "-"),
+    (_fullrep(5), "pymatching decoder without majority vote, r=5", _greens(0.94), "X", "-"),
 ]
 
 
@@ -126,14 +137,29 @@ def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--out", type=pathlib.Path,
-                    default=_ROOT / "out" / "figures" / "full_vs_local.pdf")
+    ap.add_argument("--out", type=pathlib.Path, default=None,
+                    help="Output PDF (default: full_vs_local[_correlated].pdf).")
     ap.add_argument("--method", choices=["raw", "fss", "minvar"], default="fss",
                     help="Threshold estimator (as in plot_grid_summary.py).")
     ap.add_argument("--logy", action="store_true",
                     help="Log y-axis for the boundary panel.")
+    ap.add_argument("--correlated", action="store_true",
+                    help="Read the *_correlated.csv data (native correlated MWPM, "
+                         "--decoder pymatching-correlated) instead of plain pymatching.")
     args = ap.parse_args()
     g.THRESHOLD_METHOD = args.method
+
+    # Resolve the CSV set and output name for the chosen decoder.
+    grid_local, grid_full = _GRID_LOCAL, _GRID_FULL
+    chk = [_CHECK_PZ_LOCAL, _CHECK_PRES_LOCAL, _CHECK_PZ_FULL, _CHECK_PRES_FULL]
+    default_out = _ROOT / "out" / "figures" / "full_vs_local.pdf"
+    if args.correlated:
+        grid_local, grid_full = _correlated_csv(grid_local), _correlated_csv(grid_full)
+        chk = [_correlated_csv(c) for c in chk]
+        default_out = _ROOT / "out" / "figures" / "full_vs_local_correlated.pdf"
+    chk_pz_local, chk_pres_local, chk_pz_full, chk_pres_full = chk
+    if args.out is None:
+        args.out = default_out
 
     def load(csv):
         # Also glob dated append-mode siblings (`{stem},{date}.csv`) so runs
@@ -147,16 +173,24 @@ def main() -> None:
         # Honeycomb-only figure; drop other families if the CSV mixes them.
         return df[df["input_circuit"].fillna("").str.contains("honeycomb")]
 
-    df_local = load(_GRID_LOCAL)
-    df_full = load(_GRID_FULL)
+    df_local = load(grid_local)
+    df_full = load(grid_full)
     chk_pz = {  # scheme csv per decoder family
-        "local": load(_CHECK_PZ_LOCAL), "full": load(_CHECK_PZ_FULL)}
+        "local": load(chk_pz_local), "full": load(chk_pz_full)}
     chk_pres = {
-        "local": load(_CHECK_PRES_LOCAL), "full": load(_CHECK_PRES_FULL)}
+        "local": load(chk_pres_local), "full": load(chk_pres_full)}
 
     fig, ax = plt.subplots(figsize=(6.6, 5.2), constrained_layout=True)
 
-    for scheme, label, color, marker, ls in _CURVES:
+    # Under correlated matching every curve uses correlated MWPM; note it once
+    # in the legend title rather than lengthening each label.
+    curves = _CURVES
+    if args.correlated:
+        curves = [(s, l.replace("Pymatching decoder", "matching")
+                          .replace("pymatching decoder", "matching"),
+                   c, m, ls) for s, l, c, m, ls in _CURVES]
+
+    for scheme, label, color, marker, ls in curves:
         is_full = "fullrep" in scheme
         df = df_full if is_full else df_local
         kind = "full" if is_full else "local"
@@ -204,9 +238,9 @@ def main() -> None:
         ax.set_yscale("log")
     ax.set_xlabel(r"$p^*_{\text{res}}$", fontsize=17)
     ax.set_ylabel(r"$p_z^*$ (threshold)", fontsize=17)
-    ax.set_title("Honeycomb: full decoder vs majority vote", fontsize=14)
     ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=9, framealpha=0.9)
+    leg_title = "correlated MWPM" if args.correlated else None
+    ax.legend(fontsize=9, framealpha=0.9, title=leg_title, title_fontsize=9)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, bbox_inches="tight")
