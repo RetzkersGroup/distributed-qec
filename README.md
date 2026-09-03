@@ -25,6 +25,27 @@ pip install -e ".[notebooks]"   # jupyter, matplotlib, pandas
 pip install -e ".[all]"         # everything
 ```
 
+### Beam search decoder (optional)
+
+The `beamsearch` decoder is IonQ's BP + beam-search decoder for qLDPC codes
+([ionq-publications/BeamSearchDecoder](https://github.com/ionq-publications/BeamSearchDecoder),
+arXiv:2512.07057, CC-BY-NC-SA / non-commercial). It has no root packaging, so it is not
+pip-installable; instead clone it once and build its Cython extension into `.venv`. The
+clone is gitignored (`BeamSearchDecoder/`) and nothing is committed here:
+
+```bash
+git clone https://github.com/ionq-publications/BeamSearchDecoder.git BeamSearchDecoder
+.venv/bin/python -m pip install "Cython>=3.0.0" "setuptools>=60.0.0"
+(cd BeamSearchDecoder/decoder && ../../.venv/bin/python setup.py build_ext --inplace)
+# register the clone on the venv path so `beamsearch`/`sinter_beamsearch`/`decoder` import
+SP=$(.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
+echo "$PWD/BeamSearchDecoder" > "$SP/beamsearchdecoder.pth"
+```
+
+It reuses the existing `stimbposd`/`ldpc` stack (do **not** run its `requirements.txt`,
+which pins older versions). Once set up, it is selectable like any other decoder, e.g.
+`--decoder beamsearch` or `bash tools/run_ler_vs_d_pz1e3_pres1e4.sh beamsearch`.
+
 ## Project layout
 
 ```

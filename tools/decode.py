@@ -82,6 +82,14 @@ def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
         # decomposes lossily), then pymatching matches on the reweighted graph.
         from beliefmatching import BeliefMatchingSinterDecoder
         return {"belief_matching": BeliefMatchingSinterDecoder(max_bp_iters=20)}
+    if decoder_name == "beamsearch":
+        # IonQ BP + beam-search decoder for qLDPC codes (arXiv:2512.07057).
+        # Not pip-installable: it's a gitignored clone (BeamSearchDecoder/) whose
+        # Cython extension is built in place and registered on the venv path via a
+        # .pth file -- see README. Library defaults (beam_width=8, max_rounds=10,
+        # num_results=1, initial_iters=30, iters_per_round=20).
+        from sinter_beamsearch import SinterDecoder_BeamSearch
+        return {"beamsearch": SinterDecoder_BeamSearch()}
     if decoder_name in ("relay-bp", "mem-bp", "msl-bp"):
         from relay_bp.stim import sinter_decoders
         return sinter_decoders()
@@ -101,8 +109,8 @@ def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
     raise ValueError(
         f"Unknown decoder: {decoder_name!r}. "
         f"Supported: pymatching, pymatching-correlated, fusion_blossom, "
-        f"belief_matching, tesseract_short, tesseract_long, relay-bp, "
-        f"relay-bp-light, relay-bp-ultralight, mem-bp, msl-bp."
+        f"belief_matching, tesseract_short, tesseract_long, beamsearch, "
+        f"relay-bp, relay-bp-light, relay-bp-ultralight, mem-bp, msl-bp."
     )
 
 

@@ -61,15 +61,24 @@ SCHEMES=(
   "bell_rep3|out/circuits/grid_full_rep3|--scheme equivalent_v3 --repeat 3"
 )
 
-# decoder|max_shots|max_errors -- fast decoders first. belief_matching and
-# tesseract_short are orders of magnitude slower per shot, so they get
-# smaller first-pass budgets; bump and re-run to extend.
+# decoder|max_shots|max_errors -- fast decoders first. belief_matching,
+# tesseract_short and beamsearch are orders of magnitude slower per shot, so they
+# get smaller first-pass budgets; bump and re-run to extend.
+#
+# "beamsearch" is IonQ's BP + beam-search qLDPC decoder. It is NOT pip-installable:
+# clone it once and build the extension into .venv (kept out of git):
+#   git clone https://github.com/ionq-publications/BeamSearchDecoder.git BeamSearchDecoder
+#   .venv/bin/python -m pip install "Cython>=3.0.0" "setuptools>=60.0.0"
+#   (cd BeamSearchDecoder/decoder && ../../.venv/bin/python setup.py build_ext --inplace)
+#   SP=$(.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
+#   echo "$PWD/BeamSearchDecoder" > "$SP/beamsearchdecoder.pth"
 DECODERS=(
   "pymatching|5000000|2000"
   "pymatching-correlated|5000000|2000"
   "belief_matching|500000|500"
   "tesseract_short|500000|500"
   "tesseract_long|500000|500"
+  "beamsearch|500|50"
 )
 
 # Optional: pass scheme and/or decoder names as args to run only those, e.g.
