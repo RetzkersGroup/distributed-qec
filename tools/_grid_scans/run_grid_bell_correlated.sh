@@ -25,8 +25,8 @@ SCHEME="${1:-bell}"
 INPUT_GLOB="in/circuits/honeycomb_gidney/model=SDEM3,*obs=H*.stim"
 PREAMBLE="grid_bell_correlated"   # one CSV for every scheme's correlated grid data
 DECODER="pymatching-correlated"
-MAX_SHOTS=1000000
-MAX_ERRORS=5000
+MAX_SHOTS=10000000
+MAX_ERRORS=20000
 
 case "$SCHEME" in
   bell)
