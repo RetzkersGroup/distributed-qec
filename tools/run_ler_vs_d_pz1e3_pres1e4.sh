@@ -69,6 +69,7 @@ DECODERS=(
   "pymatching-correlated|5000000|2000"
   "belief_matching|500000|500"
   "tesseract_short|500000|500"
+  "tesseract_long|500000|500"
 )
 
 # Optional: pass scheme and/or decoder names as args to run only those, e.g.

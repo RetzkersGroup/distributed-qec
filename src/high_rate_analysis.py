@@ -13,6 +13,7 @@ the raw error-rate curves at a fixed Z-bias `p_bell_z = bias * p`.
 from __future__ import annotations
 
 import ast
+import json
 import re
 
 import numpy as np
@@ -37,9 +38,20 @@ _AGG = {
 
 
 def _parse_custom_counts(s) -> dict:
-    """Parse a stringified `collections.Counter(...)` cell into a plain dict."""
-    if not isinstance(s, str) or s == "Counter()":
+    """Parse a `custom_counts` CSV cell into a plain dict.
+
+    Handles both formats decode.py emits: sinter's native JSON
+    (``{"low_confidence_shots":3}``, from ``--resume``) and pandas' stringified
+    ``collections.Counter(...)`` repr (from the default append path).
+    """
+    if not isinstance(s, str) or not s.strip() or s == "Counter()":
         return {}
+    # sinter native (resume) format: JSON object.
+    try:
+        return {k: int(v) for k, v in json.loads(s).items()}
+    except (json.JSONDecodeError, AttributeError, ValueError):
+        pass
+    # pandas default (append) format: "Counter({'k': v, ...})".
     m = re.search(r"Counter\(\{(.+)\}\)", s)
     if not m:
         return {}
