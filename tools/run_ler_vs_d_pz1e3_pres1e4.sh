@@ -62,11 +62,13 @@ SCHEMES=(
 )
 
 # decoder|max_shots|max_errors -- fast decoders first. belief_matching,
-# tesseract_short and beamsearch are orders of magnitude slower per shot, so they
-# get smaller first-pass budgets; bump and re-run to extend.
+# tesseract_short and the beam* configs are orders of magnitude slower per shot,
+# so they get smaller first-pass budgets; bump and re-run to extend.
 #
-# "beamsearch" is IonQ's BP + beam-search qLDPC decoder. It is NOT pip-installable:
-# clone it once and build the extension into .venv (kept out of git):
+# The beam* configs are IonQ's BP + beam-search qLDPC decoder (Table I of
+# arXiv:2512.07057; see BEAMSEARCH_CONFIGS in tools/decode.py for the params).
+# It is NOT pip-installable: clone it once and build the extension into .venv
+# (kept out of git):
 #   git clone https://github.com/ionq-publications/BeamSearchDecoder.git BeamSearchDecoder
 #   .venv/bin/python -m pip install "Cython>=3.0.0" "setuptools>=60.0.0"
 #   (cd BeamSearchDecoder/decoder && ../../.venv/bin/python setup.py build_ext --inplace)
@@ -77,9 +79,16 @@ DECODERS=(
   "pymatching-correlated|5000000|2000"
   "belief_matching|500000|500"
   "tesseract_short|500000|500"
-  "tesseract_long|500000|500"
-  "beamsearch|500|50"
+  "tesseract_long|500|500"
+  "beam64_32res_640iters|500|50"
 )
+
+# Beam-search configs (Table I, arXiv:2512.07057) selectable on the command line
+# even when not pre-listed in DECODERS above; keep in sync with BEAMSEARCH_CONFIGS
+# in tools/decode.py. When passed as an arg they run with this default budget.
+BEAM_CONFIGS="beam8_230iters beam32_340iters beam64_640iters beam64_32res_640iters"
+BEAM_SHOTS=500
+BEAM_ERRORS=50
 
 # Optional: pass scheme and/or decoder names as args to run only those, e.g.
 #   bash tools/run_ler_vs_d_pz1e3_pres1e4.sh tesseract_short          # one decoder, all schemes
@@ -99,6 +108,14 @@ if [ "$#" -gt 0 ]; then
     for dentry in "${DECODERS[@]}"; do
       if [[ "$dentry" == "$want|"* ]]; then sel_decoders+=("$dentry"); hit=1; fi
     done
+    # Beam-search config not pre-listed in DECODERS: synthesize a default budget.
+    if [ -z "$hit" ]; then
+      for cfg in $BEAM_CONFIGS; do
+        if [ "$cfg" = "$want" ]; then
+          sel_decoders+=("$want|$BEAM_SHOTS|$BEAM_ERRORS"); hit=1
+        fi
+      done
+    fi
     if [ -z "$hit" ]; then echo "unknown scheme/decoder: $want" >&2; exit 1; fi
   done
   if [ "${#sel_schemes[@]}" -gt 0 ]; then SCHEMES=("${sel_schemes[@]}"); fi

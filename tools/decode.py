@@ -64,6 +64,18 @@ def _write_sinter_csv(path: pathlib.Path, stats) -> None:
             f.write(line if line.endswith("\n") else line + "\n")
 
 
+# Beam search decoder configs, Table I of arXiv:2512.07057. The name (used as the
+# decoder name, like tesseract_short/long) encodes beam_width and total BP iters
+# (= initial_iters + max_rounds * iters_per_round); "res" is num_results (retained
+# solutions).
+BEAMSEARCH_CONFIGS: dict[str, dict[str, int]] = {
+    "beam8_230iters":        dict(beam_width=8,  max_rounds=10, initial_iters=30, iters_per_round=20, num_results=1),
+    "beam32_340iters":       dict(beam_width=32, max_rounds=10, initial_iters=40, iters_per_round=30, num_results=1),
+    "beam64_640iters":       dict(beam_width=64, max_rounds=20, initial_iters=40, iters_per_round=30, num_results=1),
+    "beam64_32res_640iters": dict(beam_width=64, max_rounds=20, initial_iters=40, iters_per_round=30, num_results=32),
+}
+
+
 def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
     """Return custom decoder dict if needed, None for built-in decoders."""
     # Built-in sinter decoders (no custom_decoders entry needed).
@@ -82,14 +94,14 @@ def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
         # decomposes lossily), then pymatching matches on the reweighted graph.
         from beliefmatching import BeliefMatchingSinterDecoder
         return {"belief_matching": BeliefMatchingSinterDecoder(max_bp_iters=20)}
-    if decoder_name == "beamsearch":
-        # IonQ BP + beam-search decoder for qLDPC codes (arXiv:2512.07057).
-        # Not pip-installable: it's a gitignored clone (BeamSearchDecoder/) whose
-        # Cython extension is built in place and registered on the venv path via a
-        # .pth file -- see README. Library defaults (beam_width=8, max_rounds=10,
-        # num_results=1, initial_iters=30, iters_per_round=20).
+    if decoder_name in BEAMSEARCH_CONFIGS:
+        # IonQ BP + beam-search decoder for qLDPC codes (arXiv:2512.07057). Not
+        # pip-installable: gitignored clone (BeamSearchDecoder/) built in place and
+        # put on the venv path via a .pth file -- see README. The decoder name is
+        # the Table I config (see BEAMSEARCH_CONFIGS), so it lands in the CSV
+        # `decoder` column and the plot legend.
         from sinter_beamsearch import SinterDecoder_BeamSearch
-        return {"beamsearch": SinterDecoder_BeamSearch()}
+        return {decoder_name: SinterDecoder_BeamSearch(**BEAMSEARCH_CONFIGS[decoder_name])}
     if decoder_name in ("relay-bp", "mem-bp", "msl-bp"):
         from relay_bp.stim import sinter_decoders
         return sinter_decoders()
@@ -109,7 +121,8 @@ def get_custom_decoders(decoder_name: str) -> dict[str, sinter.Decoder] | None:
     raise ValueError(
         f"Unknown decoder: {decoder_name!r}. "
         f"Supported: pymatching, pymatching-correlated, fusion_blossom, "
-        f"belief_matching, tesseract_short, tesseract_long, beamsearch, "
+        f"belief_matching, tesseract_short, tesseract_long, "
+        f"{', '.join(BEAMSEARCH_CONFIGS)} (beam search), "
         f"relay-bp, relay-bp-light, relay-bp-ultralight, mem-bp, msl-bp."
     )
 

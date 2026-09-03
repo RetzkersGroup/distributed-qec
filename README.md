@@ -43,8 +43,11 @@ echo "$PWD/BeamSearchDecoder" > "$SP/beamsearchdecoder.pth"
 ```
 
 It reuses the existing `stimbposd`/`ldpc` stack (do **not** run its `requirements.txt`,
-which pins older versions). Once set up, it is selectable like any other decoder, e.g.
-`--decoder beamsearch` or `bash tools/run_ler_vs_d_pz1e3_pres1e4.sh beamsearch`.
+which pins older versions). Once set up, each Table I config is its own decoder name
+(`beam8_230iters`, `beam32_340iters`, `beam64_640iters`, `beam64_32res_640iters`; see
+`BEAMSEARCH_CONFIGS` in `tools/decode.py`), used like any other decoder, e.g.
+`--decoder beam64_32res_640iters` or
+`bash tools/run_ler_vs_d_pz1e3_pres1e4.sh beam64_32res_640iters`.
 
 ## Project layout
 
