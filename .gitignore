@@ -32,3 +32,4 @@ floquet_colour_codes_numerics/
 # IonQ beam search decoder (ionq-publications/BeamSearchDecoder), cloned + built
 # in place for the "beamsearch" decoder; CC-BY-NC-SA, kept out of the tree. See README.
 BeamSearchDecoder/
+out.text
