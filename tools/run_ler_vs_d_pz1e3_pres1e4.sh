@@ -53,14 +53,19 @@ done
 # name|circuit_dir|scheme flags for make_grid_circuits_bell.py
 # "bell" follows the project convention: equivalent_v3 reproduces the
 # two-ancilla biased_bell_v3 exactly (see run_grid_bell.sh).
-# "bell_rep2"/"bell_rep3" are structural 2x/3x measurement repetition with full
-# decoding (repeat_measurements before translation; dirs shared with
-# run_grid_full.sh).
+# "bell_rep3" is structural 3x measurement repetition with full decoding
+# (repeat_measurements before translation; dir shared with run_grid_full.sh).
 SCHEMES=(
   "bell|out/circuits/grid_bell|--scheme equivalent_v3"
   "majority|out/circuits/grid_bell_majority|--scheme equivalent_v3_majority"
-  "bell_rep2|out/circuits/grid_full_rep2|--scheme equivalent_v3 --repeat 2"
   "bell_rep3|out/circuits/grid_full_rep3|--scheme equivalent_v3 --repeat 3"
+)
+
+# Schemes selectable on the command line but NOT run by default (same
+# name|circuit_dir|flags format as SCHEMES above). "bell_rep2" is the 2x
+# repetition counterpart of bell_rep3.
+EXTRA_SCHEMES=(
+  "bell_rep2|out/circuits/grid_full_rep2|--scheme equivalent_v3 --repeat 2"
 )
 
 # decoder|max_shots|max_errors -- fast decoders first. belief_matching,
@@ -96,6 +101,7 @@ BEAM_ERRORS=50
 #   bash tools/run_ler_vs_d_pz1e3_pres1e4.sh tesseract_short          # one decoder, all schemes
 #   bash tools/run_ler_vs_d_pz1e3_pres1e4.sh bell_rep3                # one scheme, all decoders
 #   bash tools/run_ler_vs_d_pz1e3_pres1e4.sh bell_rep3 pymatching     # one scheme x one decoder
+# EXTRA_SCHEMES / BEAM_CONFIGS entries are only reachable this way.
 # Copy CSVs from remote machines back next to the local one as
 # out/collection/${PREAMBLE},<date>,<host>.csv -- the notebook globs
 # ${PREAMBLE}*.csv and sums batches per strong_id.
@@ -104,7 +110,7 @@ if [ "$#" -gt 0 ]; then
   sel_decoders=()
   for want in "$@"; do
     hit=""
-    for entry in "${SCHEMES[@]}"; do
+    for entry in "${SCHEMES[@]}" "${EXTRA_SCHEMES[@]}"; do
       if [[ "$entry" == "$want|"* ]]; then sel_schemes+=("$entry"); hit=1; fi
     done
     for dentry in "${DECODERS[@]}"; do
