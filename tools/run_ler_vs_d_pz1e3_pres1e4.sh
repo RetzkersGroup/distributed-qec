@@ -53,11 +53,13 @@ done
 # name|circuit_dir|scheme flags for make_grid_circuits_bell.py
 # "bell" follows the project convention: equivalent_v3 reproduces the
 # two-ancilla biased_bell_v3 exactly (see run_grid_bell.sh).
-# "bell_rep3" is structural 3x measurement repetition with full decoding
-# (repeat_measurements before translation; dir shared with run_grid_full.sh).
+# "bell_rep2"/"bell_rep3" are structural 2x/3x measurement repetition with full
+# decoding (repeat_measurements before translation; dirs shared with
+# run_grid_full.sh).
 SCHEMES=(
   "bell|out/circuits/grid_bell|--scheme equivalent_v3"
   "majority|out/circuits/grid_bell_majority|--scheme equivalent_v3_majority"
+  "bell_rep2|out/circuits/grid_full_rep2|--scheme equivalent_v3 --repeat 2"
   "bell_rep3|out/circuits/grid_full_rep3|--scheme equivalent_v3 --repeat 3"
 )
 
@@ -79,8 +81,8 @@ DECODERS=(
   "pymatching-correlated|5000000|2000"
   "belief_matching|500000|500"
   "tesseract_short|500000|500"
-  "tesseract_long|500|500"
-  "beam64_32res_640iters|500|50"
+  "tesseract_long|500000|500"
+  "beam64_32res_640iters|500000|500"
 )
 
 # Beam-search configs (Table I, arXiv:2512.07057) selectable on the command line
