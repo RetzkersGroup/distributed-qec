@@ -8,8 +8,11 @@ build/
 # Virtual environment
 .venv/
 
-# Output data
-out/
+# Output data (collection CSVs and figures are tracked)
+out/*
+!out/collection/
+!out/figures/
+out/collection/*.lock
 
 # IDE
 .idea/
